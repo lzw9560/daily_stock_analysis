@@ -1,0 +1,53 @@
+# ============================================================
+# Fly.io 部署配置 - A股自选股智能分析系统
+# ============================================================
+# 文档：https://fly.io/docs/reference/configuration/
+
+app = "daily-stock-analysis"
+primary_region = "nrt"  # Tokyo（国内访问延迟最低）
+
+[build]
+  dockerfile = "Dockerfile"
+
+# 启动命令：仅 API 服务模式
+[experimental]
+  cmd = ["python", "main.py", "--serve-only", "--port", "8000"]
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = false   # 保持服务始终运行
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "30s"
+    method = "get"
+    path = "/api/health"
+    protocol = "http"
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+# 资源配置（免费额度内）
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+# 持久化卷（挂载数据、日志、报告目录）
+[mounts]
+  source = "stock_data"
+  destination = "/app/data"
+
+[mounts]
+  source = "stock_logs"
+  destination = "/app/logs"
+
+[mounts]
+  source = "stock_reports"
+  destination = "/app/reports"

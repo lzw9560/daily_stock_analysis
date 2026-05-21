@@ -1,30 +1,52 @@
-# 忽略 Python 缓存
+# Python 缓存
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 
-# 忽略虚拟环境
+# 虚拟环境
 venv/
 .venv/
+.venv311/
 env/
-.env.local
 
-# 忽略 IDE
+# IDE / 编辑器
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# 忽略数据文件（可选，如果想持久化就注释掉）
-# data/
-# logs/
-# reports/
+# 运行时数据（通过 volume 挂载）
+data/
+logs/
+reports/
 
-# 忽略测试文件
+# 测试
 test_*.py
 *_test.py
+.pytest_cache/
 
-# 忽略文档
+# 文档
 *.md
 !README.md
+
+# 前端（多阶段构建自行处理）
+apps/dsa-web/node_modules/
+apps/dsa-web/dist/
+
+# 其他
+.git/
+.gitignore
+.dockerignore
+docker-compose*.yml
+docker/
+*.profraw
+brewlog.txt
+iterm2-setup/
+package-lock.json
+node_modules/
+default.profraw
+
+# 环境变量（敏感信息）
+.env
+.env.*

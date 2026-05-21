@@ -7,14 +7,17 @@ FROM node:20-slim AS web-builder
 
 WORKDIR /app/apps/dsa-web
 
+# 复制 package 文件并安装依赖
 COPY apps/dsa-web/package.json apps/dsa-web/package-lock.json ./
-RUN npm ci
+RUN npm ci --prefer-offline || npm ci
 
+# 复制源码并构建
 COPY apps/dsa-web/ ./
-RUN npm run build
+RUN echo "Building frontend..." && npm run build && echo "Frontend build complete!"
 
 # Pin to bookworm: wkhtmltopdf was removed from Debian testing (2025)
-FROM python:3.11-slim-bookworm
+# FROM python:3.11-slim-bookworm
+FROM python:3.11-slim-bullseye
 
 # 设置工作目录
 WORKDIR /app

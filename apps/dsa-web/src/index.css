@@ -1,6 +1,6 @@
-@import "tailwindcss";
-@config "../tailwind.config.js";
-/* Tailwind v4 strategy: keep theme extensions in tailwind.config.js via @config until a dedicated @theme/@utility migration. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* =========================================
    1. THEME VARIABLES (Base/Classic)
