@@ -402,7 +402,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
     set({ error: getParsedApiError(task.error || '分析失败') });
   },
 
-  removeTask: (taskId) => {
+  removeTask: (taskId: string) => {
     dismissedTaskIds.add(taskId);
     set({ activeTasks: get().activeTasks.filter((task) => task.taskId !== taskId) });
   },

@@ -1003,7 +1003,7 @@ const PortfolioPage: React.FC = () => {
                       <Cell key={`cell-${entry.name}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value) => `${Number(value).toFixed(2)}%`} />
+                  <Tooltip formatter={(value: number) => `${Number(value).toFixed(2)}%`} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>

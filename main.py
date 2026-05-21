@@ -216,6 +216,8 @@ def parse_arguments() -> argparse.Namespace:
   python main.py --single-notify    # 启用单股推送模式（每分析完一只立即推送）
   python main.py --schedule         # 启用定时任务模式
   python main.py --market-review    # 仅运行大盘复盘
+  python main.py --seal-plate       # 运行打板助手（涨停板分析）
+  python main.py --seal-plate-only  # 仅运行打板助手
         '''
     )
 
@@ -278,6 +280,26 @@ def parse_arguments() -> argparse.Namespace:
         '--no-market-review',
         action='store_true',
         help='跳过大盘复盘分析'
+    )
+
+    # === Seal Plate (打板助手) ===
+    parser.add_argument(
+        '--seal-plate',
+        action='store_true',
+        help='运行打板助手（涨停板分析）'
+    )
+
+    parser.add_argument(
+        '--seal-plate-only',
+        action='store_true',
+        help='仅运行打板助手，不运行个股分析'
+    )
+
+    parser.add_argument(
+        '--seal-min-score',
+        type=int,
+        default=60,
+        help='打板助手最低评分阈值（默认60）'
     )
 
     parser.add_argument(
@@ -877,6 +899,23 @@ def main() -> int:
                 send_notification=not args.no_notify,
                 override_region=effective_region,
             )
+            return 0
+
+        # 模式X: 仅打板助手
+        if args.seal_plate_only:
+            logger.info("模式: 仅打板助手")
+            from src.seal_plate import SealPlateService
+
+            seal_service = SealPlateService(config={
+                'min_score': getattr(args, 'seal_min_score', 60),
+                'feishu_enabled': not args.no_notify,
+            })
+            report = seal_service.run(
+                date=datetime.now().strftime("%Y%m%d"),
+                force=args.force_run
+            )
+            if report:
+                logger.info(f"打板分析完成: {len(report.strong_stocks)} 只强势股")
             return 0
 
         # 模式2: 定时任务模式

@@ -1,0 +1,75 @@
+name: Deploy to Koyeb
+
+# 在 Docker 镜像构建完成后触发部署
+# 也可手动触发
+on:
+  workflow_run:
+    workflows: ["Docker Build (Develop)"]
+    types: [completed]
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: koyeb-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GHCR_REGISTRY: ghcr.io
+  GHCR_IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    name: 🚀 Deploy to Koyeb
+    runs-on: ubuntu-latest
+    # 仅在 lzw9560/daily_stock_analysis 仓库运行
+    if: |
+      github.repository == 'lzw9560/daily_stock_analysis' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔐 Install Koyeb CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/koyeb/koyeb-cli/main/install.sh | sh
+          echo "$HOME/.koyeb/bin" >> $GITHUB_PATH
+
+      - name: 🚀 Deploy to Koyeb
+        env:
+          KOYEB_API_TOKEN: ${{ secrets.KOYEB_API_TOKEN }}
+        run: |
+          IMAGE="${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:develop"
+
+          # 尝试更新已有服务，不存在则创建
+          koyeb service update stock-analysis \
+            --image "$IMAGE" \
+            --ports 8000:http \
+            --regions was \
+            --instance-type free \
+            --health-check-port 8000 \
+            --health-check-path /api/health \
+            --health-check-grace-period 30 \
+            --no-health-check-failures-before-alert 3 \
+            --command "python main.py --serve-only --port 8000" \
+            2>/dev/null || \
+          koyeb service create stock-analysis \
+            --image "$IMAGE" \
+            --ports 8000:http \
+            --regions was \
+            --instance-type free \
+            --health-check-port 8000 \
+            --health-check-path /api/health \
+            --health-check-grace-period 30 \
+            --no-health-check-failures-before-alert 3 \
+            --command "python main.py --serve-only --port 8000"
+
+      - name: 📋 Summary
+        run: |
+          echo "### 🚀 Koyeb 部署完成" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Service: \`stock-analysis\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: \`${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:develop\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: https://stock-analysis-$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]').koyeb.app" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> 健康检查: /api/health" >> "$GITHUB_STEP_SUMMARY"

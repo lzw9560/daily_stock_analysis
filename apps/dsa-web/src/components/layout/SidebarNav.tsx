@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { BarChart3, BriefcaseBusiness, Home, LogOut, MessageSquareQuote, Settings2 } from 'lucide-react';
+import { BarChart3, BriefcaseBusiness, Home, LogOut, MessageSquareQuote, Settings2, Zap } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAgentChatStore } from '../../stores/agentChatStore';
@@ -28,6 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'chat', label: '问股', to: '/chat', icon: MessageSquareQuote, badge: 'completion' },
   { key: 'portfolio', label: '持仓', to: '/portfolio', icon: BriefcaseBusiness },
   { key: 'backtest', label: '回测', to: '/backtest', icon: BarChart3 },
+  { key: 'seal-plate', label: '打板助手', to: '/seal-plate', icon: Zap },
   { key: 'settings', label: '设置', to: '/settings', icon: Settings2 },
 ];
 
@@ -55,7 +56,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ collapsed = false, onNav
             end={exact}
             onClick={onNavigate}
             aria-label={label}
-            className={({ isActive }) =>
+            className={({ isActive }: { isActive: boolean }) =>
               cn(
                 'group relative flex items-center gap-3 border-y border-x-0 text-sm transition-all',
                 'h-[var(--nav-item-height)]',
@@ -66,7 +67,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ collapsed = false, onNav
               )
             }
           >
-            {({ isActive }) => (
+            {({ isActive }: { isActive: boolean }) => (
               <>
                 {isActive && (
                   <motion.div 
