@@ -4,7 +4,7 @@ services:
     env: docker
     region: oregon
     plan: free
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.render
     dockerContext: ./
     dockerCommand: --serve-only --port $PORT --host 0.0.0.0
     envVars:

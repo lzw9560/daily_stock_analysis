@@ -1,0 +1,36 @@
+FROM python:3.11-slim-bullseye
+
+WORKDIR /app
+
+ENV TZ=Asia/Shanghai \
+    PYTHONUNBUFFERED=1 \
+    LOG_DIR=/app/logs \
+    DATABASE_PATH=/app/data/stock_analysis.db
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc curl wkhtmltopdf fontconfig libjpeg62-turbo libxrender1 libxext6 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY *.py ./
+COPY api/ ./api/
+COPY data_provider/ ./data_provider/
+COPY bot/ ./bot/
+COPY patch/ ./patch/
+COPY src/ ./src/
+COPY strategies/ ./strategies/
+
+RUN mkdir -p /app/data /app/logs /app/reports /app/static
+RUN echo '<html><body>DSA API Running</body></html>' > /app/static/index.html
+
+RUN useradd --create-home --shell /bin/bash appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+ENTRYPOINT ["python", "main.py"]
+CMD ["--serve-only", "--host", "0.0.0.0"]
