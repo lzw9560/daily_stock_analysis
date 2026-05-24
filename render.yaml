@@ -18,8 +18,8 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: ./
 
-    # 启动命令：仅 API + Web 服务，不执行定时分析
-    dockerCommand: python main.py --serve-only --port $PORT --host 0.0.0.0
+    # 启动参数（覆盖 Dockerfile 的 CMD，ENTRYPOINT 仍是 python main.py）
+    dockerCommand: --serve-only --port $PORT --host 0.0.0.0
 
     healthCheckPath: /api/health
     healthCheckTimeout: 10
