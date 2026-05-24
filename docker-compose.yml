@@ -2,8 +2,6 @@
 # A股自选股智能分析系统 - Docker Compose
 # ===================================
 
-version: '3.8'
-
 services:
   stock-analysis:
     build:
@@ -11,54 +9,28 @@ services:
       dockerfile: Dockerfile
     container_name: stock-analysis
     restart: unless-stopped
-    
-    # 环境变量配置
-    environment:
-      - STOCK_LIST=${STOCK_LIST:-002283}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - AIHUBMIX_KEY=${AIHUBMIX_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
-      - LITELLM_MODEL=${LITELLM_MODEL:-deepseek-chat}
-      - FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL:-}
-      - REPORT_TYPE=${REPORT_TYPE:-simple}
-      - REPORT_LANGUAGE=${REPORT_LANGUAGE:-zh}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - MAX_WORKERS=${MAX_WORKERS:-3}
-      - RUN_IMMEDIATELY=${RUN_IMMEDIATELY:-true}
-      - MARKET_REVIEW_ENABLED=${MARKET_REVIEW_ENABLED:-true}
-    
+
+    # 加载 .env 文件中的环境变量
+    env_file:
+      - .env
+
+    # 命令行参数：仅 API + Web 服务模式
+    command: ["--serve-only", "--port", "8000"]
+
     # 挂载卷（保留数据）
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./reports:/app/reports
-      - ./data/stock_analysis.db:/app/data/stock_analysis.db
-    
+
     # 端口映射
     ports:
       - "8000:8000"
-    
+
     # 健康检查
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # WebUI 服务（可选）
-  stock-analysis-web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: stock-analysis-web
-    command: python webui.py
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    environment:
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      start_period: 30s

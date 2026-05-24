@@ -1,14 +1,3 @@
-# ============================================================
-# Render Blueprint 部署配置
-# https://render.com/docs/blueprint-spec
-#
-# 使用方式：
-#   1. 浏览器打开 https://render.com
-#   2. Sign in with GitHub
-#   3. New → Blueprint → 选择仓库 main.py 所在目录
-#   4. Render 自动检测 render.yaml 并创建服务
-# ============================================================
-
 services:
   - type: web
     name: daily-stock-analysis
@@ -17,20 +6,10 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     dockerContext: ./
-
-    # 启动参数（覆盖 Dockerfile 的 CMD，ENTRYPOINT 仍是 python main.py）
     dockerCommand: --serve-only --port $PORT --host 0.0.0.0
-
     healthCheckPath: /api/health
     healthCheckTimeout: 10
-
-    # 环境变量（敏感值在 Render Dashboard 中设置，见下方说明）
     envVars:
-      # === 必需：从 Render Dashboard 设置 ===
-      # GEMINI_API_KEY       → Dashboard → Environment → Add Secret
-      # FEISHU_WEBHOOK_URL   → Dashboard → Environment → Add Secret
-
-      # === 运行时配置 ===
       - key: TZ
         value: Asia/Shanghai
       - key: PYTHONUNBUFFERED
@@ -41,14 +20,3 @@ services:
         value: /app/data/stock_analysis.db
       - key: USE_PROXY
         value: "false"
-
-      # === 服务地址 ===
-      # Render 自动注入 RENDER_EXTERNAL_URL，无需手动设置
-
-    # 磁盘（免费版限制）
-    # 注意：Render free 不支持持久化磁盘，数据在重启后丢失
-    # 如需持久化，升级到 Starter 计划后启用下列配置：
-    # disk:
-    #   name: data
-    #   mountPath: /app/data
-    #   sizeGB: 1
