@@ -7,8 +7,6 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: ./
     dockerCommand: --serve-only --port $PORT --host 0.0.0.0
-    healthCheckPath: /api/health
-    healthCheckTimeout: 10
     envVars:
       - key: TZ
         value: Asia/Shanghai
