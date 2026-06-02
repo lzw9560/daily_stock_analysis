@@ -40,6 +40,7 @@ apps/dsa-web/dist/
 .dockerignore
 docker-compose*.yml
 docker/
+!docker/entrypoint.sh
 *.profraw
 brewlog.txt
 iterm2-setup/
