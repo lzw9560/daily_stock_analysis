@@ -621,7 +621,12 @@ class SealPlateAnalyzer:
 # ================================================================
 
 class SentimentAnalyzer:
-    """情绪周期分析器 — 架构文档 §4"""
+    """情绪周期分析器 — 架构文档 §4
+    
+    支持多数据源增强:
+    - 基础: 涨停/跌停统计数据（来自 AKShare/东方财富）
+    - 增强: 同花顺热点概念热度（来自 THS Hotspot）
+    """
 
     # 7 项市场指标权重 — 架构文档 §4.2
     INDICATOR_WEIGHTS = {
@@ -731,6 +736,41 @@ class SentimentAnalyzer:
             if lo <= score <= hi:
                 return phase
         return "中性"
+
+    def enhance_with_hotspot(
+        self, sentiment_data: dict, hotspot_data: Optional[dict] = None
+    ) -> dict:
+        """
+        使用同花顺热点数据增强情绪分析
+
+        Args:
+            sentiment_data: 原有的情绪分析结果
+            hotspot_data: 来自 THSHotspotFetcher.get_market_hot_analysis()
+
+        Returns:
+            增强后的情绪分析结果
+        """
+        if not hotspot_data:
+            return sentiment_data
+
+        enhanced = dict(sentiment_data)
+
+        hot_concepts = hotspot_data.get("hot_concepts", [])
+        concept_count = len(hot_concepts)
+        enhanced["hot_concepts_count"] = concept_count
+
+        fund_inflow = hotspot_data.get("fund_inflow_sectors", [])
+        total_inflow = sum(f.get("net_inflow", 0) for f in fund_inflow)
+        enhanced["fund_inflow_intensity"] = total_inflow
+
+        market_heat = hotspot_data.get("market_heat_score", 50)
+        enhanced["market_heat_score"] = market_heat
+        enhanced["sentiment_signal"] = hotspot_data.get("sentiment_signal", "neutral")
+
+        top_concepts = [c["name"] for c in hot_concepts[:3]]
+        enhanced["top_hot_concepts"] = top_concepts
+
+        return enhanced
 
     def get_position_suggestion(self, score: int, risk_preference: str = "稳健") -> dict:
         """

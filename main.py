@@ -941,6 +941,38 @@ def main() -> int:
                 run_full_analysis(runtime_config, args, scheduled_stock_codes)
 
             background_tasks = []
+
+            # === 注册打板助手定时任务 ===
+            if getattr(config, 'seal_plate_enabled', False):
+                # 早盘推荐任务（每个交易日 8:50）
+                def morning_seal_plate_task():
+                    try:
+                        from src.seal_plate import run_morning_task
+                        result = run_morning_task()
+                        logger.info("打板早盘推荐: %s", result.get("message", ""))
+                    except Exception as e:
+                        logger.exception("打板早盘推荐任务异常: %s", e)
+
+                # 收盘复盘任务（每个交易日 15:30）
+                def evening_seal_plate_task():
+                    try:
+                        from src.seal_plate import run_evening_task
+                        result = run_evening_task()
+                        logger.info("打板收盘复盘: %s", result.get("message", ""))
+                    except Exception as e:
+                        logger.exception("打板收盘复盘任务异常: %s", e)
+
+                # 使用 schedule 直接注册（绕过 Scheduler 的 single daily task 限制）
+                try:
+                    import schedule as schedule_lib
+                    schedule_lib.every().day.at("08:50").do(morning_seal_plate_task)
+                    schedule_lib.every().day.at("15:30").do(evening_seal_plate_task)
+                    logger.info(
+                        "已注册打板助手定时任务: 早盘推荐 08:50, 收盘复盘 15:30"
+                    )
+                except Exception as e:
+                    logger.warning("注册打板定时任务失败: %s", e)
+
             if getattr(config, 'agent_event_monitor_enabled', False):
                 from src.agent.events import build_event_monitor_from_config, run_event_monitor_once
 

@@ -11,7 +11,7 @@ API v1 路由聚合
 
 from fastapi import APIRouter
 
-from api.v1.endpoints import analysis, auth, history, stocks, backtest, system_config, agent, usage, portfolio, seal_plate
+from api.v1.endpoints import analysis, auth, history, stocks, backtest, system_config, agent, usage, portfolio, seal_plate, position_monitor
 
 # 创建 v1 版本主路由
 router = APIRouter(prefix="/api/v1")
@@ -74,4 +74,9 @@ router.include_router(
     seal_plate.router,
     prefix="/seal-plate",
     tags=["SealPlate"]
+)
+
+router.include_router(
+    position_monitor.router,
+    tags=["PositionMonitor"]
 )

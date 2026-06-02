@@ -64,13 +64,14 @@ class SealPlateService:
         运行打板分析全流程
 
         Args:
-            date: 日期 YYYYMMDD，默认今天
+            date: 日期 YYYYMMDD，默认自动选择有效日期
             force: 强制运行
 
         Returns:
             分析报告，无数据返回 None
         """
-        date = date or datetime.now().strftime("%Y%m%d")
+        from .date_utils import get_effective_date
+        date = get_effective_date(date)
         self.logger.info("=== 打板分析启动: %s ===", date)
 
         # 1. 数据获取
@@ -85,9 +86,10 @@ class SealPlateService:
         self.logger.info("[2/5] 分析涨停板...")
         report = self.analyzer.analyze(stocks, date)
 
-        # 3. 情绪周期分析 — 架构文档 §4
+        # 3. 情绪周期分析 — 架构文档 §4（含同花顺热点增强）
         self.logger.info("[3/5] 计算情绪周期...")
-        self._compute_sentiment(report, stocks)
+        hotspot_data = self._fetch_hotspot_data()
+        self._compute_sentiment(report, stocks, hotspot_data)
 
         # 4. 过滤 + 保存报告
         self.logger.info("[4/5] 过滤并保存报告...")
@@ -114,55 +116,64 @@ class SealPlateService:
     # ========================
 
     def _compute_sentiment(
-        self, report: SealPlateReport, stocks: list[SealPlateStock]
+        self, report: SealPlateReport, stocks: list[SealPlateStock],
+        hotspot_data: Optional[dict] = None,
     ) -> None:
-        """计算情绪指数并填入报告 — 架构文档 §4"""
+        """计算情绪指数并填入报告 — 架构文档 §4（含同花顺热点增强）"""
 
         n = len(stocks)
 
-        # 涨停家数
-        limit_up_count = n
-
-        # 跌停家数（从当天所有股票推算，这里用炸板数做近似）
-        # 注意: 实际应获取跌停数据，暂时用炸板数近似
-        limit_down_count = report.bomb_count
-
-        # 炸板率
-        bomb_rate = report.bomb_count / n if n > 0 else 0
-
-        # 最高连板
-        max_consecutive = report.max_consecutive
-
-        # 昨日涨停溢价（简化: 根据情绪推测，无历史数据默认 2%）
-        avg_premium = 2.0
-
-        # 连板晋级率（简化: 连板股占比）
-        non_first = [s for s in stocks if s.consecutive_days > 1]
-        advance_rate = len(non_first) / n if n > 0 else 0
-
-        # 量能变化（简化: 默认 0）
-        volume_change = 0.0
-
         market_data = {
-            "limit_up_count": limit_up_count,
-            "limit_down_count": limit_down_count,
-            "max_consecutive": max_consecutive,
-            "bomb_rate": bomb_rate,
-            "avg_premium": avg_premium,
-            "advance_rate": advance_rate,
-            "volume_change": volume_change,
+            "limit_up_count": n,
+            "limit_down_count": report.bomb_count,
+            "max_consecutive": report.max_consecutive,
+            "bomb_rate": report.bomb_count / n if n > 0 else 0,
+            "avg_premium": 2.0,
+            "advance_rate": (
+                len([s for s in stocks if s.consecutive_days > 1]) / n
+                if n > 0 else 0
+            ),
+            "volume_change": 0.0,
         }
 
         index, phase, indicators = self.sentiment.calculate_sentiment_index(
             market_data
         )
 
-        report.sentiment_index = float(index)
-        report.sentiment_phase = phase
+        # 同花顺热点增强
+        if hotspot_data:
+            enhanced = self.sentiment.enhance_with_hotspot(
+                {"sentiment_index": index, "sentiment_phase": phase, "indicators": indicators},
+                hotspot_data,
+            )
+            report.sentiment_index = float(enhanced.get("sentiment_index", index))
+            report.sentiment_phase = enhanced.get("sentiment_phase", phase)
+            # 附加热点信息到报告
+            report._hotspot_data = {
+                "market_heat_score": enhanced.get("market_heat_score", 50),
+                "hot_concepts_count": enhanced.get("hot_concepts_count", 0),
+                "top_hot_concepts": enhanced.get("top_hot_concepts", []),
+                "sentiment_signal": enhanced.get("sentiment_signal", "neutral"),
+                "fund_inflow_intensity": enhanced.get("fund_inflow_intensity", 0),
+            }
+        else:
+            report.sentiment_index = float(index)
+            report.sentiment_phase = phase
 
         self.logger.debug(
-            "情绪指数: %.0f → %s, 指标: %s", index, phase, indicators
+            "情绪指数: %.0f → %s, 指标: %s",
+            report.sentiment_index, report.sentiment_phase, indicators,
         )
+
+    def _fetch_hotspot_data(self) -> Optional[dict]:
+        """尝试从同花顺获取热点数据"""
+        try:
+            from data_provider.ths_hotspot_fetcher import create_ths_hotspot_fetcher
+            ths = create_ths_hotspot_fetcher()
+            return ths.get_market_hot_analysis()
+        except Exception as e:
+            self.logger.debug("同花顺热点获取失败: %s", e)
+            return None
 
     # ========================
     #  报告保存

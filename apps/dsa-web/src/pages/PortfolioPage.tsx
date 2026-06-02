@@ -6,6 +6,7 @@ import type { ParsedApiError } from '../api/error';
 import { getParsedApiError } from '../api/error';
 import { ApiErrorAlert, Card, Badge, ConfirmDialog, EmptyState, InlineAlert } from '../components/common';
 import { toDateInputValue } from '../utils/format';
+import HoldingsPanel from '../components/sealPlate/HoldingsPanel';
 import type {
   PortfolioAccountItem,
   PortfolioCashDirection,
@@ -837,6 +838,9 @@ const PortfolioPage: React.FC = () => {
           message={writeWarning}
         />
       ) : null}
+
+      {/* 持仓明细概览（从打板助手接入） */}
+      <HoldingsPanel />
 
       {(showCreateAccount || !hasAccounts) ? (
         <Card padding="md">

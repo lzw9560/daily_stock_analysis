@@ -853,6 +853,7 @@ class DataFetcherManager:
           2. PytdxFetcher (Priority 2) - 通达信
           2. TushareFetcher (Priority 2)
           3. BaostockFetcher (Priority 3)
+          3. TencentFetcher (Priority 3) - 腾讯财经（实时行情补充）
           4. YfinanceFetcher (Priority 4)
           5. LongbridgeFetcher (Priority 5) - 长桥（美股/港股兜底）
         """
@@ -861,6 +862,7 @@ class DataFetcherManager:
         from .tushare_fetcher import TushareFetcher
         from .pytdx_fetcher import PytdxFetcher
         from .baostock_fetcher import BaostockFetcher
+        from .tencent_fetcher import TencentFetcher
         from .yfinance_fetcher import YfinanceFetcher
         from .longbridge_fetcher import LongbridgeFetcher
         # 创建所有数据源实例（优先级在各 Fetcher 的 __init__ 中确定）
@@ -869,6 +871,7 @@ class DataFetcherManager:
         tushare = TushareFetcher()  # 会根据 Token 配置自动调整优先级
         pytdx = PytdxFetcher()      # 通达信数据源（可配 PYTDX_HOST/PYTDX_PORT）
         baostock = BaostockFetcher()
+        tencent = TencentFetcher()  # 腾讯财经（免费实时行情补充）
         yfinance = YfinanceFetcher()
         longbridge = LongbridgeFetcher()  # 长桥（美股/港股兜底，懒加载）
 
@@ -881,6 +884,7 @@ class DataFetcherManager:
                 tushare,
                 pytdx,
                 baostock,
+                tencent,
                 yfinance,
                 longbridge,
             ]
@@ -1233,12 +1237,20 @@ class DataFetcherManager:
                             break
                 
                 elif source in ("tencent", "akshare_qq"):
-                    # 尝试 AkshareFetcher 腾讯数据源
+                    # 优先尝试专用 TencentFetcher（独立HTTP，响应更快）
+                    quote = None
                     for fetcher in self._get_fetchers_snapshot():
-                        if fetcher.name == "AkshareFetcher":
+                        if fetcher.name == "TencentFetcher":
                             if hasattr(fetcher, 'get_realtime_quote'):
-                                quote = self._call_fetcher_method(fetcher, 'get_realtime_quote', stock_code, source="tencent")
+                                quote = self._call_fetcher_method(fetcher, 'get_realtime_quote', stock_code)
                             break
+                    # 降级到 AkshareFetcher 腾讯数据源
+                    if quote is None:
+                        for fetcher in self._get_fetchers_snapshot():
+                            if fetcher.name == "AkshareFetcher":
+                                if hasattr(fetcher, 'get_realtime_quote'):
+                                    quote = self._call_fetcher_method(fetcher, 'get_realtime_quote', stock_code, source="tencent")
+                                break
                 
                 elif source == "tushare":
                     # 尝试 TushareFetcher（需要 Tushare Pro 积分）

@@ -2,14 +2,18 @@
 涨停板数据获取服务
 基于 SEAL_PLATE_ARCHITECTURE.md v2.1 §2.1
 
-双数据源策略: AKShare（主） + 东方财富 push2 API（备）
+多数据源策略:
+- 主源: AKShare（涨停池 + 龙虎榜）
+- 备源: 东方财富 push2 API
+- 补充: 腾讯财经（实时行情验证）
+- 选股: iWenCai 问财（强势股筛选）
 """
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, List
 
 from .models import SealPlateStock
 
@@ -21,6 +25,22 @@ class SealPlateFetcher:
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self._tencent_fetcher = None
+        self._iwencai_fetcher = None
+
+    @property
+    def tencent(self):
+        if self._tencent_fetcher is None:
+            from data_provider.tencent_fetcher import TencentFetcher
+            self._tencent_fetcher = TencentFetcher()
+        return self._tencent_fetcher
+
+    @property
+    def iwencai(self):
+        if self._iwencai_fetcher is None:
+            from data_provider.iwencai_fetcher import create_iwencai_fetcher
+            self._iwencai_fetcher = create_iwencai_fetcher()
+        return self._iwencai_fetcher
 
     def fetch_all(self, date: Optional[str] = None) -> list[SealPlateStock]:
         """
@@ -49,8 +69,71 @@ class SealPlateFetcher:
             except Exception as exc:
                 self.logger.error("东方财富获取失败: %s", exc)
 
+        # 补充: 腾讯财经实时行情验证（补充缺失的价格/量比等字段）
+        if stocks:
+            try:
+                self._supplement_with_tencent(stocks)
+            except Exception as exc:
+                self.logger.debug("腾讯财经补充行情失败: %s", exc)
+
         stocks.sort(key=lambda s: s.score, reverse=True)
         return stocks
+
+    def get_strong_stocks_from_iwencai(self) -> List[Dict]:
+        """
+        从问财获取强势股候选（补充涨停池之外的优质标的）
+        
+        用于推荐引擎扩大候选池。
+        """
+        try:
+            return self.iwencai.get_strong_stocks()
+        except Exception as exc:
+            self.logger.debug("问财选股失败: %s", exc)
+            return []
+
+    # ========================
+    #  腾讯财经实时行情补充
+    # ========================
+
+    def _supplement_with_tencent(self, stocks: list[SealPlateStock]) -> None:
+        """用腾讯财经实时行情补充验证股票数据"""
+        codes = [s.code for s in stocks if s.code]
+        if not codes:
+            return
+
+        try:
+            quotes = self.tencent.get_batch_realtime_quotes(codes)
+            updated = 0
+            for stock in stocks:
+                quote = quotes.get(stock.code)
+                if not quote:
+                    continue
+
+                # 补充量比（AKShare 有时缺失）
+                if getattr(stock, "volume_ratio", None) is None and quote.volume_ratio:
+                    stock.volume_ratio = float(quote.volume_ratio)
+                    updated += 1
+
+                # 补充换手率
+                if stock.turnover_rate == 0 and quote.turnover_rate:
+                    stock.turnover_rate = float(quote.turnover_rate)
+                    updated += 1
+
+                # 补充市值信息
+                if stock.total_cap is None and quote.total_mv:
+                    stock.total_cap = float(quote.total_mv)
+                    updated += 1
+                if stock.market_cap is None and quote.circ_mv:
+                    stock.market_cap = float(quote.circ_mv)
+                    updated += 1
+
+            if updated:
+                self.logger.info(
+                    "腾讯财经补充 %d 条数据 (共 %d 只股票)",
+                    updated, len(stocks),
+                )
+        except Exception as exc:
+            self.logger.debug("腾讯财经补充异常: %s", exc)
 
     # ========================
     #  AKShare 数据源（主）
