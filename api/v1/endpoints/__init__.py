@@ -20,6 +20,8 @@ from api.v1.endpoints import (
     usage,
     portfolio,
     seal_plate,
+    alerts,
+    alphasift,
 )
 __all__ = [
     "health",
@@ -33,4 +35,6 @@ __all__ = [
     "usage",
     "portfolio",
     "seal_plate",
+    "alerts",
+    "alphasift",
 ]

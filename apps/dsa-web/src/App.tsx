@@ -1,19 +1,27 @@
 import type React from 'react';
-import { useEffect } from 'react';
+import { lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import HomePage from './pages/HomePage';
-import BacktestPage from './pages/BacktestPage';
-import SettingsPage from './pages/SettingsPage';
-import LoginPage from './pages/LoginPage';
-import NotFoundPage from './pages/NotFoundPage';
-import ChatPage from './pages/ChatPage';
-import PortfolioPage from './pages/PortfolioPage';
-import SealPlatePage from './pages/SealPlatePage';
-import PositionMonitorPage from './pages/PositionMonitorPage';
 import { ApiErrorAlert, Shell } from './components/common';
+import {
+  PageLoadingFallback,
+  RouteOutletBoundary,
+  StandaloneRouteBoundary,
+} from './components/layout/RouteBoundary';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useAgentChatStore } from './stores/agentChatStore';
 import './App.css';
+
+const HomePage = lazy(() => import('./pages/HomePage'));
+const BacktestPage = lazy(() => import('./pages/BacktestPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
+const PortfolioPage = lazy(() => import('./pages/PortfolioPage'));
+const SealPlatePage = lazy(() => import('./pages/SealPlatePage'));
+const PositionMonitorPage = lazy(() => import('./pages/PositionMonitorPage'));
+const AlertsPage = lazy(() => import('./pages/AlertsPage'));
+const StockScreeningPage = lazy(() => import('./pages/StockScreeningPage'));
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -24,11 +32,7 @@ const AppContent: React.FC = () => {
   }, [location.pathname]);
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-base">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan/20 border-t-cyan" />
-      </div>
-    );
+    return <PageLoadingFallback />;
   }
 
   if (loadError) {
@@ -50,7 +54,11 @@ const AppContent: React.FC = () => {
 
   if (authEnabled && !loggedIn) {
     if (location.pathname === '/login') {
-      return <LoginPage />;
+      return (
+        <StandaloneRouteBoundary>
+          <LoginPage />
+        </StandaloneRouteBoundary>
+      );
     }
     const redirect = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/login?redirect=${redirect}`} replace />;
@@ -62,17 +70,24 @@ const AppContent: React.FC = () => {
 
   return (
     <Routes>
-      <Route element={<Shell />}>
+      <Route
+        element={(
+          <Shell>
+            <RouteOutletBoundary />
+          </Shell>
+        )}
+      >
         <Route path="/" element={<HomePage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/portfolio" element={<PortfolioPage />} />
+        <Route path="/screening" element={<StockScreeningPage />} />
         <Route path="/backtest" element={<BacktestPage />} />
         <Route path="/seal-plate" element={<SealPlatePage />} />
         <Route path="/position-monitor" element={<PositionMonitorPage />} />
+        <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
-      <Route path="/login" element={<LoginPage />} />
     </Routes>
   );
 };

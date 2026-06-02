@@ -19,6 +19,7 @@ import json
 import logging
 import re
 import time
+import contextvars
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
@@ -501,11 +502,14 @@ def run_agent_loop(
             assistant_msg: Dict[str, Any] = {
                 "role": "assistant",
                 "content": response.content,
+                "_trace_provider": response.provider,
+                "_trace_model": m,
                 "tool_calls": [
                     {
                         "id": tc.id,
                         "name": tc.name,
                         "arguments": tc.arguments,
+                        **({"provider_specific_fields": tc.provider_specific_fields} if tc.provider_specific_fields else {}),
                         **({"thought_signature": tc.thought_signature} if tc.thought_signature is not None else {}),
                     }
                     for tc in response.tool_calls
@@ -513,6 +517,8 @@ def run_agent_loop(
             }
             if response.reasoning_content is not None:
                 assistant_msg["reasoning_content"] = response.reasoning_content
+            if response.provider_blocks:
+                assistant_msg["provider_blocks"] = response.provider_blocks
             messages.append(assistant_msg)
 
             # Execute tools (parallel when > 1)
@@ -653,8 +659,9 @@ def _execute_tools(
         timeout_triggered = False
         if tool_wait_timeout_seconds and tool_wait_timeout_seconds > 0:
             pool = ThreadPoolExecutor(max_workers=1)
+            ctx = contextvars.copy_context()
             try:
-                future = pool.submit(_exec_single, tc)
+                future = pool.submit(ctx.run, _exec_single, tc)
                 try:
                     _, result_str, success, dur, cached = future.result(timeout=tool_wait_timeout_seconds)
                 except FuturesTimeoutError:
@@ -696,7 +703,7 @@ def _execute_tools(
         pool = ThreadPoolExecutor(max_workers=min(len(tool_calls), 5))
         timeout_triggered = False
         try:
-            futures = {pool.submit(_exec_single, tc): tc for tc in tool_calls}
+            futures = {pool.submit(contextvars.copy_context().run, _exec_single, tc): tc for tc in tool_calls}
             pending = set(futures)
             for future in as_completed(
                 futures,

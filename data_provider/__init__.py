@@ -45,6 +45,8 @@ from .baostock_fetcher import BaostockFetcher
 from .tencent_fetcher import TencentFetcher
 from .yfinance_fetcher import YfinanceFetcher
 from .longbridge_fetcher import LongbridgeFetcher
+from .finnhub_fetcher import FinnhubFetcher
+from .alphavantage_fetcher import AlphaVantageFetcher
 from .us_index_mapping import is_us_index_code, is_us_stock_code, get_us_index_yf_symbol, US_INDEX_MAPPING
 from .iwencai_fetcher import IwenCaiFetcher, create_iwencai_fetcher
 from .ths_hotspot_fetcher import THSHotspotFetcher, create_ths_hotspot_fetcher
@@ -60,6 +62,8 @@ __all__ = [
     'TencentFetcher',
     'YfinanceFetcher',
     'LongbridgeFetcher',
+    'FinnhubFetcher',
+    'AlphaVantageFetcher',
     'IwenCaiFetcher',
     'create_iwencai_fetcher',
     'THSHotspotFetcher',
