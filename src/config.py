@@ -435,6 +435,7 @@ class Config:
     feishu_app_id: Optional[str] = None
     feishu_app_secret: Optional[str] = None
     feishu_folder_token: Optional[str] = None  # 目标文件夹 Token
+    feishu_agent_app_id: Optional[str] = None  # 飞书智能体（Aily）应用 ID
 
     # === 数据源 API Token ===
     tushare_token: Optional[str] = None
@@ -1115,6 +1116,7 @@ class Config:
             feishu_app_id=os.getenv('FEISHU_APP_ID'),
             feishu_app_secret=os.getenv('FEISHU_APP_SECRET'),
             feishu_folder_token=os.getenv('FEISHU_FOLDER_TOKEN'),
+            feishu_agent_app_id=os.getenv('FEISHU_AGENT_APP_ID'),
             tushare_token=os.getenv('TUSHARE_TOKEN'),
             tickflow_api_key=os.getenv('TICKFLOW_API_KEY'),
             longbridge_app_key=os.getenv('LONGBRIDGE_APP_KEY') or None,

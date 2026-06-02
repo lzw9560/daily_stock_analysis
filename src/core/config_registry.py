@@ -912,6 +912,19 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "validation": {},
         "display_order": 16,
     },
+    "FEISHU_AGENT_APP_ID": {
+        "title": "Feishu Agent App ID",
+        "description": "Feishu Aily (AI Agent) application ID for interacting with the Feishu intelligent agent. Get this from Aily's channel management page.",
+        "category": "notification",
+        "data_type": "string",
+        "is_sensitive": False,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": None,
+        "options": [],
+        "validation": {},
+        "display_order": 17,
+    },
     # ------------------------------------------------------------------
     # Notification – Telegram
     # ------------------------------------------------------------------
