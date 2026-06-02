@@ -346,6 +346,125 @@ class DailyFeishuNotifier:
             "elements": elements,
         }
 
+    # ========================
+    #  战法+建仓 合并分析推送
+    # ========================
+
+    def send_combined_analysis(
+        self,
+        combined_data,
+    ) -> bool:
+        """发送战法与建仓合并分析到飞书"""
+        enabled = os.getenv("SEAL_PLATE_NOTIFICATION_ENABLED", "true").lower() == "true"
+        if not enabled:
+            logger.info("通知已禁用，跳过合并分析推送")
+            return False
+
+        date = combined_data.date
+        elements = []
+
+        # 标题
+        elements.append({
+            "tag": "markdown",
+            "content": (
+                f"**战法+建仓合并分析**\n"
+                f"日期：{date} | 情绪：{combined_data.sentiment_phase}({combined_data.sentiment_index})\n"
+                f"胜率：{combined_data.win_rate:.1%} | 近10笔：{combined_data.rolling_win_rate:.1%}"
+            ),
+        })
+        elements.append({"tag": "hr"})
+
+        # 高置信推荐（多战法共振）
+        if combined_data.high_confidence:
+            elements.append({
+                "tag": "markdown",
+                "content": "🎯 **多战法共振标的（重点推荐）**",
+            })
+            for i, cr in enumerate(combined_data.high_confidence[:5], 1):
+                matched_str = " + ".join(cr.matched_strategies) if cr.matched_strategies else "评分入选"
+                sector_str = f" | {cr.sector}" if cr.sector else ""
+                elements.append({
+                    "tag": "markdown",
+                    "content": (
+                        f"**{i}. {cr.name}**({cr.code}){sector_str}\n"
+                        f"综合评分：**{cr.composite_score}** | 置信度：{cr.confidence}\n"
+                        f"战法：{matched_str}\n"
+                        f"仓位：{cr.suggested_position_pct}% | 建仓：{cr.buy_analysis}\n"
+                        f"卖出：{cr.sell_analysis}"
+                    ),
+                })
+            elements.append({"tag": "hr"})
+
+        # 中等置信
+        if combined_data.medium_confidence:
+            elements.append({
+                "tag": "markdown",
+                "content": "📊 **中等置信度标的**",
+            })
+            for i, cr in enumerate(combined_data.medium_confidence[:3], 1):
+                matched_str = " + ".join(cr.matched_strategies) if cr.matched_strategies else "评分入选"
+                sector_str = f" | {cr.sector}" if cr.sector else ""
+                elements.append({
+                    "tag": "markdown",
+                    "content": (
+                        f"{i}. **{cr.name}**({cr.code}){sector_str} "
+                        f"评分:{cr.composite_score} "
+                        f"战法:{matched_str} "
+                        f"仓位:{cr.suggested_position_pct}%"
+                    ),
+                })
+            elements.append({"tag": "hr"})
+
+        # 过滤提醒
+        if combined_data.gem_filtered:
+            gem_list = ", ".join(f"{g['name']}({g['code']})" for g in combined_data.gem_filtered[:5])
+            elements.append({
+                "tag": "markdown",
+                "content": f"🚫 **已过滤创业板标的** ({len(combined_data.gem_filtered)}只)\n{gem_list}",
+            })
+
+        if combined_data.risk_filtered:
+            risk_list = "\n".join(
+                f"• {r['name']}({r['code']}): {r['reason']}" 
+                for r in combined_data.risk_filtered[:5]
+            )
+            elements.append({
+                "tag": "markdown",
+                "content": f"⚠️ **龙虎榜/风控过滤** ({len(combined_data.risk_filtered)}只)\n{risk_list}",
+            })
+
+        # 板块分析
+        if combined_data.focus_sectors or combined_data.avoid_sectors:
+            elements.append({"tag": "hr"})
+            if combined_data.focus_sectors:
+                elements.append({
+                    "tag": "markdown",
+                    "content": f"🔥 **重点关注板块**: {', '.join(combined_data.focus_sectors)}",
+                })
+            if combined_data.avoid_sectors:
+                elements.append({
+                    "tag": "markdown",
+                    "content": f"⚠️ **建议规避板块**: {', '.join(combined_data.avoid_sectors)}",
+                })
+
+        # 尾注
+        elements.append({"tag": "hr"})
+        elements.append({
+            "tag": "markdown",
+            "content": "*系统综合分析，仅供参考。投资有风险，入市需谨慎。已自动剔除创业板标的。*",
+        })
+
+        return self._send_card({
+            "header": {
+                "title": {
+                    "tag": "plain_text",
+                    "content": f"⚡ 战法+建仓 合并推荐 | {date}",
+                },
+                "template": "purple",
+            },
+            "elements": elements,
+        })
+
     @staticmethod
     def _send_card(card: dict) -> bool:
         """发送飞书交互卡片"""

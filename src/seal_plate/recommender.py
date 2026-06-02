@@ -82,11 +82,18 @@ class RecommendationEngine:
             iwencai_candidates: 问财选股候选（可选增强）
             fund_analysis: 资金流向分析结果（可选增强）
         """
-        # 1. 收集候选标的（强势 + 关注）
+        # 1. 收集候选标的（强势 + 关注），剔除创业板
         candidates = list(report.strong_stocks)
         for s in report.watch_stocks:
             if s.score >= 65:
                 candidates.append(s)
+
+        # 过滤创业板标的（30xxx）
+        gem_filtered = [s for s in candidates if s.code.startswith(("30", "301"))]
+        if gem_filtered:
+            gem_names = [f"{s.name}({s.code})" for s in gem_filtered]
+            logger.info("已过滤创业板标的(%d只): %s", len(gem_filtered), gem_names)
+        candidates = [s for s in candidates if not s.code.startswith(("30", "301"))]
 
         # 问财强势股补充（与打板池交叉验证）
         if iwencai_candidates:

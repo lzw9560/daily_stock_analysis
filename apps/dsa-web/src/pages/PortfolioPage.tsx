@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BriefcaseBusiness } from 'lucide-react';
 import { Pie, PieChart, ResponsiveContainer, Tooltip, Legend, Cell } from 'recharts';
 import { portfolioApi } from '../api/portfolio';
 import type { ParsedApiError } from '../api/error';
@@ -7,6 +8,7 @@ import { getParsedApiError } from '../api/error';
 import { ApiErrorAlert, Card, Badge, ConfirmDialog, EmptyState, InlineAlert } from '../components/common';
 import { toDateInputValue } from '../utils/format';
 import HoldingsPanel from '../components/sealPlate/HoldingsPanel';
+import PositionReviewPanel from '../components/sealPlate/PositionReviewPanel';
 import type {
   PortfolioAccountItem,
   PortfolioCashDirection,
@@ -1348,6 +1350,22 @@ const PortfolioPage: React.FC = () => {
           }
         }}
       />
+
+      {/* 持仓复盘模块 */}
+      <section className="space-y-3">
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
+            <BriefcaseBusiness className="w-5 h-5 text-blue-500" />
+            持仓复盘
+          </h2>
+          <p className="text-xs text-secondary">
+            基于当前持仓的深度分析与操作建议，支持个股风险诊断
+          </p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <PositionReviewPanel />
+        </div>
+      </section>
     </div>
   );
 };

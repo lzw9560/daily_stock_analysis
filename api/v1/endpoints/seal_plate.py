@@ -2404,6 +2404,34 @@ async def get_stock_risk_analysis(
         else:
             risk_level = "low"
 
+        # 龙虎榜机构风险提示
+        try:
+            from src.seal_plate.dragon_tiger_risk import get_dragon_tiger_risk_factors, DragonTigerInstitutionRisk
+
+            dt_risk = get_dragon_tiger_risk_factors(
+                code=stock_code,
+                name=stock_name,
+                score=target.score if target else 60,
+                seal_amount=target.seal_amount if target else 1000,
+            )
+
+            if dt_risk.risk_level in ("high", "critical"):
+                risk_score = max(risk_score, dt_risk.risk_score)
+                risk_level = "high" if risk_level != "high" else risk_level
+                for reason in dt_risk.risk_reasons:
+                    one_day_tour_risks.append(f"龙虎榜: {reason}")
+                suggestions.append(f"📊 {dt_risk.suggestion}")
+                if dt_risk.hot_money_pure_pump:
+                    hot_money_risks.append("龙虎榜: 纯游资对倒，无机构参与")
+                if dt_risk.one_day_tour_risk:
+                    one_day_tour_risks.append("龙虎榜: 识别到一日游席位参与")
+            elif dt_risk.risk_level == "medium":
+                for reason in dt_risk.risk_reasons:
+                    if "游资" in reason:
+                        hot_money_risks.append(f"龙虎榜: {reason}")
+        except ImportError:
+            pass  # 模块不可用时跳过
+
         return StockRiskAnalysisResponse(
             code=stock_code,
             name=stock_name,
@@ -2568,3 +2596,257 @@ async def get_watchlist_status():
     except Exception as e:
         logger.error(f"获取自选状态失败: {e}", exc_info=True)
         return WatchlistStatusResponse(codes=[])
+
+
+# ============ 推荐建仓管理 API ============
+
+class RecommendationRecordResponse(BaseModel):
+    """推荐建仓记录"""
+    date: str = Field(description="推荐日期")
+    label: str = Field(description="日期标签")
+    generated_at: str = Field("", description="生成时间")
+    code: str = Field(description="股票代码")
+    name: str = Field(description="股票名称")
+    score: int = Field(0, description="评分")
+    change_pct: float = Field(0.0, description="涨跌幅%")
+    seal_time: Optional[str] = Field(None, description="封板时间")
+    sector: Optional[str] = Field(None, description="所属板块")
+    seal_amount: float = Field(0.0, description="封单金额(万)")
+    reasons: list[str] = Field(default_factory=list, description="推荐理由")
+    outcome: Optional[str] = Field(None, description="结果: 成功/失败/持平")
+    actual_return_pct: Optional[float] = Field(None, description="实际收益率%")
+    won: Optional[bool] = Field(None, description="是否盈利")
+    review_note: Optional[str] = Field(None, description="复盘备注")
+    sentiment_phase: str = Field("", description="情绪阶段")
+    sentiment_index: float = Field(50.0, description="情绪指数")
+
+
+class RecommendationRecordListResponse(BaseModel):
+    """推荐记录列表"""
+    items: list[RecommendationRecordResponse] = Field(default_factory=list)
+    total: int = Field(0, description="总记录数")
+    limit: int = Field(90, description="每页条数")
+    offset: int = Field(0, description="偏移量")
+
+
+class DailyWinRateItemResponse(BaseModel):
+    """每日胜率项"""
+    date: str
+    label: str
+    total_count: int = 0
+    settled_count: int = 0
+    won_count: int = 0
+    lost_count: int = 0
+    pending_count: int = 0
+    win_rate: float = 0.0
+    avg_return: float = 0.0
+    max_return: float = 0.0
+    min_return: float = 0.0
+    sentiment_phase: str = ""
+    sentiment_index: float = 50.0
+    recommendations: list[dict] = Field(default_factory=list)
+
+
+class WinRateBacktestResponse(BaseModel):
+    """胜率回溯响应"""
+    daily_records: list[DailyWinRateItemResponse] = Field(default_factory=list)
+    overall_win_rate: float = 0.0
+    total_recommendations: int = 0
+    total_settled: int = 0
+    total_won: int = 0
+    avg_return: float = 0.0
+    best_day: Optional[dict] = None
+    worst_day: Optional[dict] = None
+
+
+class HistoricalWinRateResponse(BaseModel):
+    """历史胜率查询响应"""
+    target_date: str
+    target_detail: Optional[dict] = None
+    trend: list[dict] = Field(default_factory=list)
+    lookback_days: int = 5
+    overall_stats: dict = Field(default_factory=dict)
+
+
+class AvailableDatesResponse(BaseModel):
+    """可选日期列表"""
+    dates: list[dict] = Field(default_factory=list)
+
+
+# --- 推荐记录 API ---
+
+@router.get("/recommendation-records", response_model=RecommendationRecordListResponse)
+async def get_recommendation_records(
+    limit: int = Query(90, description="每页条数", ge=1, le=200),
+    offset: int = Query(0, description="偏移量", ge=0),
+    date_from: Optional[str] = Query(None, description="起始日期 YYYYMMDD"),
+    date_to: Optional[str] = Query(None, description="结束日期 YYYYMMDD"),
+):
+    """
+    获取推荐建仓记录列表
+
+    支持分页和日期范围筛选。
+    每条记录包含推荐时间、标的代码、推荐价格等关键信息。
+    """
+    from src.seal_plate.recommendation_management import RecommendationManager
+
+    try:
+        manager = RecommendationManager()
+        records = manager.get_all_recommendations(
+            limit=limit, offset=offset,
+            date_from=date_from, date_to=date_to,
+        )
+        total = manager.get_recommendation_count(
+            date_from=date_from, date_to=date_to,
+        )
+
+        return RecommendationRecordListResponse(
+            items=[
+                RecommendationRecordResponse(
+                    date=r.date,
+                    label=r.label,
+                    generated_at=r.generated_at,
+                    code=r.code,
+                    name=r.name,
+                    score=r.score,
+                    change_pct=r.change_pct,
+                    seal_time=r.seal_time,
+                    sector=r.sector,
+                    seal_amount=r.seal_amount,
+                    reasons=r.reasons,
+                    outcome=r.outcome,
+                    actual_return_pct=r.actual_return_pct,
+                    won=r.won,
+                    review_note=r.review_note,
+                    sentiment_phase=r.sentiment_phase,
+                    sentiment_index=r.sentiment_index,
+                )
+                for r in records
+            ],
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+    except Exception as e:
+        logger.error(f"获取推荐记录失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- 每日胜率回溯 API ---
+
+@router.get("/win-rate-backtest", response_model=WinRateBacktestResponse)
+async def get_win_rate_backtest(
+    days: int = Query(30, description="回溯天数", ge=1, le=365),
+    date_from: Optional[str] = Query(None, description="起始日期 YYYYMMDD"),
+    date_to: Optional[str] = Query(None, description="结束日期 YYYYMMDD"),
+):
+    """
+    获取每日胜率回溯数据
+
+    自动统计并回溯每日推荐标的的涨跌胜率，提供历史胜率数据评估。
+    """
+    from src.seal_plate.recommendation_management import RecommendationManager
+
+    try:
+        manager = RecommendationManager()
+        result = manager.compute_daily_win_rate_backtest(
+            days=days,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        return WinRateBacktestResponse(
+            daily_records=[
+                DailyWinRateItemResponse(
+                    date=r.date,
+                    label=r.label,
+                    total_count=r.total_count,
+                    settled_count=r.settled_count,
+                    won_count=r.won_count,
+                    lost_count=r.lost_count,
+                    pending_count=r.pending_count,
+                    win_rate=r.win_rate,
+                    avg_return=r.avg_return,
+                    max_return=r.max_return,
+                    min_return=r.min_return,
+                    sentiment_phase=r.sentiment_phase,
+                    sentiment_index=r.sentiment_index,
+                    recommendations=r.recommendations,
+                )
+                for r in result.daily_records
+            ],
+            overall_win_rate=result.overall_win_rate,
+            total_recommendations=result.total_recommendations,
+            total_settled=result.total_settled,
+            total_won=result.total_won,
+            avg_return=result.avg_return,
+            best_day={
+                "date": result.best_day.date,
+                "win_rate": result.best_day.win_rate,
+                "settled_count": result.best_day.settled_count,
+                "won_count": result.best_day.won_count,
+            } if result.best_day else None,
+            worst_day={
+                "date": result.worst_day.date,
+                "win_rate": result.worst_day.win_rate,
+                "settled_count": result.worst_day.settled_count,
+                "won_count": result.worst_day.won_count,
+            } if result.worst_day else None,
+        )
+    except Exception as e:
+        logger.error(f"获取胜率回溯失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- 历史胜率查询 API ---
+
+@router.get("/historical-win-rate", response_model=HistoricalWinRateResponse)
+async def get_historical_win_rate(
+    target_date: str = Query(..., description="目标日期 YYYYMMDD"),
+    lookback_days: int = Query(5, description="前后对比天数", ge=1, le=30),
+):
+    """
+    查询特定日期的阶段性胜率表现
+
+    支持选择特定日期查看过往推荐标的的阶段性胜率表现。
+    返回目标日期详情 + 前后N天趋势对比 + 整体胜率统计。
+    """
+    from src.seal_plate.recommendation_management import RecommendationManager
+
+    try:
+        manager = RecommendationManager()
+        result = manager.query_historical_win_rate(
+            target_date=target_date,
+            lookback_days=lookback_days,
+        )
+
+        return HistoricalWinRateResponse(
+            target_date=result["target_date"],
+            target_detail=result["target_detail"],
+            trend=result["trend"],
+            lookback_days=result["lookback_days"],
+            overall_stats=result["overall_stats"],
+        )
+    except Exception as e:
+        logger.error(f"获取历史胜率失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- 可用日期列表 API ---
+
+@router.get("/recommendation-dates", response_model=AvailableDatesResponse)
+async def get_recommendation_dates():
+    """
+    获取有推荐记录的所有日期列表
+
+    供前端日期选择器使用，只返回有推荐数据的日期。
+    """
+    from src.seal_plate.recommendation_management import RecommendationManager
+
+    try:
+        manager = RecommendationManager()
+        dates = manager.get_available_dates()
+        return AvailableDatesResponse(dates=dates)
+    except Exception as e:
+        logger.error(f"获取可选日期失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

@@ -81,8 +81,4 @@ router.include_router(
     tags=["PositionMonitor"]
 )
 
-router.include_router(
-    feishu_agent.router,
-    prefix="/feishu",
-    tags=["Feishu Agent"]
-)
+

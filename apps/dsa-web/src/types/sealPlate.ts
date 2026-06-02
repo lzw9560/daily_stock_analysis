@@ -545,3 +545,144 @@ export interface WatchlistResponse {
 export interface WatchlistStatusResponse {
   codes: string[];
 }
+
+// ============ 推荐建仓管理 ============
+
+export interface RecommendationRecordResponse {
+  date: string;
+  label: string;
+  generatedAt: string;
+  code: string;
+  name: string;
+  score: number;
+  changePct: number;
+  sealTime: string | null;
+  sector: string | null;
+  sealAmount: number;
+  reasons: string[];
+  outcome: string | null;
+  actualReturnPct: number | null;
+  won: boolean | null;
+  reviewNote: string | null;
+  sentimentPhase: string;
+  sentimentIndex: number;
+}
+
+export interface RecommendationRecordListResponse {
+  items: RecommendationRecordResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface DailyWinRateItemResponse {
+  date: string;
+  label: string;
+  totalCount: number;
+  settledCount: number;
+  wonCount: number;
+  lostCount: number;
+  pendingCount: number;
+  winRate: number;
+  avgReturn: number;
+  maxReturn: number;
+  minReturn: number;
+  sentimentPhase: string;
+  sentimentIndex: number;
+  recommendations: {
+    code: string;
+    name: string;
+    score: number;
+    changePct: number;
+    sealTime: string | null;
+    sector: string | null;
+    reasons: string[];
+    outcome: string | null;
+    actualReturnPct: number | null;
+    won: boolean | null;
+    reviewNote: string | null;
+  }[];
+}
+
+export interface WinRateBacktestResponse {
+  dailyRecords: DailyWinRateItemResponse[];
+  overallWinRate: number;
+  totalRecommendations: number;
+  totalSettled: number;
+  totalWon: number;
+  avgReturn: number;
+  bestDay: {
+    date: string;
+    winRate: number;
+    settledCount: number;
+    wonCount: number;
+  } | null;
+  worstDay: {
+    date: string;
+    winRate: number;
+    settledCount: number;
+    wonCount: number;
+  } | null;
+}
+
+export interface HistoricalWinRateResponse {
+  targetDate: string;
+  targetDetail: {
+    date: string;
+    label: string;
+    totalCount: number;
+    settledCount: number;
+    wonCount: number;
+    lostCount: number;
+    pendingCount: number;
+    winRate: number;
+    sentimentPhase: string;
+    sentimentIndex: number;
+    recommendations: {
+      code: string;
+      name: string;
+      score: number;
+      changePct: number;
+      sealTime: string | null;
+      sector: string | null;
+      reasons: string[];
+      outcome: string | null;
+      actualReturnPct: number | null;
+      won: boolean | null;
+      reviewNote: string | null;
+    }[];
+  } | null;
+  trend: {
+    date: string;
+    label: string;
+    count: number;
+    settled: number;
+    won: number;
+    winRate: number;
+    isTarget: boolean;
+  }[];
+  lookbackDays: number;
+  overallStats: {
+    totalRecommendations: number;
+    settled: number;
+    won: number;
+    lost: number;
+    pending: number;
+    winRate: number;
+    avgReturn: number;
+    rollingWinRate10: number;
+    trend: string;
+  };
+}
+
+export interface AvailableDatesResponse {
+  dates: {
+    date: string;
+    label: string;
+    count: number;
+    settled: number;
+    won: number;
+    winRate: number | null;
+    sentimentPhase: string;
+  }[];
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Zap, TrendingUp, AlertTriangle, Flame, Crown, BarChart3, RefreshCw, Filter, Brain, Shield, Layers, Calendar, Target, TrendingDown, CheckCircle, XCircle, Database, ClipboardList, Swords, Star, StarOff, Info, BriefcaseBusiness } from 'lucide-react';
+import { Zap, TrendingUp, AlertTriangle, Flame, Crown, BarChart3, RefreshCw, Filter, Brain, Shield, Layers, Calendar, Target, TrendingDown, CheckCircle, XCircle, Database, ClipboardList, Swords, Star, StarOff, Info } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
 import { Badge } from '@/components/common/Badge';
@@ -19,10 +19,11 @@ import EightStandardChecklist from '@/components/sealPlate/EightStandardChecklis
 import DataSourcePanel from '@/components/sealPlate/DataSourcePanel';
 import ReviewPanel from '@/components/sealPlate/ReviewPanel';
 import StrategiesPanel from '@/components/sealPlate/StrategiesPanel';
-import PositionReviewPanel from '@/components/sealPlate/PositionReviewPanel';
+import CombinedAnalysisPanel from '@/components/sealPlate/CombinedAnalysisPanel';
+import RecommendationManagementPanel from '@/components/sealPlate/RecommendationManagementPanel';
 
 // Tab类型
-type TabType = 'overview' | 'stockPool' | 'sentiment' | 'dragonTiger' | 'recommend' | 'strategies' | 'dataSources' | 'recommendReview' | 'positionReview';
+type TabType = 'overview' | 'stockPool' | 'sentiment' | 'dragonTiger' | 'recommend' | 'strategies' | 'dataSources' | 'recommendReview' | 'combinedAnalysis' | 'recommendManagement';
 
 export default function SealPlatePage() {
   const [report, setReport] = useState<SealPlateReportResponse | null>(null);
@@ -470,14 +471,25 @@ export default function SealPlatePage() {
         </button>
         <button
           className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
-            activeTab === 'positionReview'
+            activeTab === 'combinedAnalysis'
               ? 'border-red-500 text-red-500'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
-          onClick={() => setActiveTab('positionReview')}
+          onClick={() => setActiveTab('combinedAnalysis')}
         >
-          <BriefcaseBusiness className="w-4 h-4" />
-          持仓复盘
+          <Zap className="w-4 h-4" />
+          综合推荐
+        </button>
+        <button
+          className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+            activeTab === 'recommendManagement'
+              ? 'border-blue-500 text-blue-500'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+          onClick={() => setActiveTab('recommendManagement')}
+        >
+          <BarChart3 className="w-4 h-4" />
+          推荐管理
         </button>
       </div>
 
@@ -902,9 +914,14 @@ export default function SealPlatePage() {
         <ReviewPanel />
       )}
 
-      {/* 持仓个股复盘Tab */}
-      {activeTab === 'positionReview' && (
-        <PositionReviewPanel />
+      {/* 综合推荐Tab - 战法+建仓合并分析 */}
+      {activeTab === 'combinedAnalysis' && (
+        <CombinedAnalysisPanel />
+      )}
+
+      {/* 推荐管理Tab - 记录/回溯/历史查询 */}
+      {activeTab === 'recommendManagement' && (
+        <RecommendationManagementPanel />
       )}
 
       {/* 空数据提示 */}

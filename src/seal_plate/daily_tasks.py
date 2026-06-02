@@ -221,10 +221,34 @@ class SealPlateDailyTasks:
             # 3. 生成次日持仓建议
             next_day_advice = self._generate_next_day_advice(date, review_data)
 
-            # 4. 发送飞书通知
+            # 4. 发送飞书通知（复盘）
             if self.feishu.enabled and review_data:
                 sent = self.feishu.send_evening_review(review_data, next_day_advice)
                 result["feishu_sent"] = sent
+
+            # 5. 战法+建仓合并分析，推送到飞书
+            combined_sent = False
+            try:
+                from .combined_analyzer import CombinedAnalyzer
+                from .recommender import RecommendationEngine
+                from .recommendation_log import RecommendationLogStore
+
+                # 获取最新的推荐结果
+                rec_engine = RecommendationEngine()
+                rec_result = rec_engine.generate_recommendations(
+                    report, date_label=f"{date_str}",
+                )
+                if rec_result.recommendations:
+                    analyzer = CombinedAnalyzer()
+                    combined = analyzer.analyze(rec_result)
+                    if self.feishu.enabled:
+                        combined_sent = self.feishu.send_combined_analysis(combined)
+                        if combined_sent:
+                            result.setdefault("combined_sent", True)
+                else:
+                    logger.info("无推荐标的，跳过合并分析飞书推送")
+            except Exception as exc:
+                logger.warning("合并分析推送失败（已跳过）: %s", exc)
 
             # 构建消息
             parts = []
@@ -234,6 +258,8 @@ class SealPlateDailyTasks:
                 parts.append("LLM分析已完成")
             if result["feishu_sent"]:
                 parts.append("飞书通知已发送")
+            if combined_sent:
+                parts.append("合并分析已推送")
             result["message"] = "、".join(parts) if parts else "复盘完成"
 
             logger.info("收盘复盘任务完成: %s", result["message"])

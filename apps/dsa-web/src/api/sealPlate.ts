@@ -33,6 +33,10 @@ import type {
   WatchlistResponse,
   WatchlistStatusResponse,
   WatchlistItem,
+  RecommendationRecordListResponse,
+  WinRateBacktestResponse,
+  HistoricalWinRateResponse,
+  AvailableDatesResponse,
 } from '../types/sealPlate';
 
 // ============ API ============
@@ -508,5 +512,70 @@ export const sealPlateApi = {
       `/api/v1/seal-plate/watchlist/${code}`
     );
     return response.data;
+  },
+
+  // ============ 推荐建仓管理 ============
+
+  /**
+   * 获取推荐建仓记录列表
+   */
+  getRecommendationRecords: async (params: {
+    limit?: number;
+    offset?: number;
+    dateFrom?: string;
+    dateTo?: string;
+  } = {}): Promise<RecommendationRecordListResponse> => {
+    const queryParams: Record<string, string | number> = {};
+    if (params.limit !== undefined) queryParams.limit = params.limit;
+    if (params.offset !== undefined) queryParams.offset = params.offset;
+    if (params.dateFrom) queryParams.date_from = params.dateFrom;
+    if (params.dateTo) queryParams.date_to = params.dateTo;
+
+    const response = await apiClient.get<RecommendationRecordListResponse>(
+      '/api/v1/seal-plate/recommendation-records',
+      { params: queryParams }
+    );
+    return toCamelCase<RecommendationRecordListResponse>(response.data);
+  },
+
+  /**
+   * 获取每日胜率回溯数据
+   */
+  getWinRateBacktest: async (params: {
+    days?: number;
+    dateFrom?: string;
+    dateTo?: string;
+  } = {}): Promise<WinRateBacktestResponse> => {
+    const queryParams: Record<string, string | number> = {};
+    if (params.days !== undefined) queryParams.days = params.days;
+    if (params.dateFrom) queryParams.date_from = params.dateFrom;
+    if (params.dateTo) queryParams.date_to = params.dateTo;
+
+    const response = await apiClient.get<WinRateBacktestResponse>(
+      '/api/v1/seal-plate/win-rate-backtest',
+      { params: queryParams }
+    );
+    return toCamelCase<WinRateBacktestResponse>(response.data);
+  },
+
+  /**
+   * 查询特定日期的阶段性胜率
+   */
+  getHistoricalWinRate: async (targetDate: string, lookbackDays: number = 5): Promise<HistoricalWinRateResponse> => {
+    const response = await apiClient.get<HistoricalWinRateResponse>(
+      '/api/v1/seal-plate/historical-win-rate',
+      { params: { target_date: targetDate, lookback_days: lookbackDays } }
+    );
+    return toCamelCase<HistoricalWinRateResponse>(response.data);
+  },
+
+  /**
+   * 获取有推荐记录的日期列表
+   */
+  getRecommendationDates: async (): Promise<AvailableDatesResponse> => {
+    const response = await apiClient.get<AvailableDatesResponse>(
+      '/api/v1/seal-plate/recommendation-dates'
+    );
+    return toCamelCase<AvailableDatesResponse>(response.data);
   },
 };
