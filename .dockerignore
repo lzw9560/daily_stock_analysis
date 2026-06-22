@@ -1,3 +1,7 @@
+# ===================================
+# A股自选股智能分析系统 - .dockerignore
+# ===================================
+
 # Python 缓存
 __pycache__/
 *.py[cod]
@@ -25,29 +29,34 @@ reports/
 test_*.py
 *_test.py
 .pytest_cache/
+tests/
 
-# 文档
+# 文档（保留 README.md 和 DEPLOY.md）
 *.md
 !README.md
+!DEPLOY.md
 
-# 前端（多阶段构建自行处理）
+# 前端 node_modules / dist（多阶段构建自行处理）
 apps/dsa-web/node_modules/
 apps/dsa-web/dist/
 
 # 其他
 .git/
 .gitignore
-.dockerignore
-docker-compose*.yml
-docker/
-!docker/entrypoint.sh
+.github/
 *.profraw
 brewlog.txt
 iterm2-setup/
-package-lock.json
 node_modules/
-default.profraw
+package-lock.json
+!apps/dsa-web/package-lock.json
+.claude/
+.codebuddy/
+scripts/
+# docker/ 目录自身会被 COPY 的特定文件引用，不整体排除
+# 但排除非必要文件
+docker/*.md
 
-# 环境变量（敏感信息）
+# 环境变量（通过 docker-compose env_file 注入）
 .env
 .env.*

@@ -1055,9 +1055,22 @@ Set the following variables in `.env` (all optional, have defaults):
 | `BACKTEST_ENGINE_VERSION` | `v1` | Engine version, used to distinguish results when logic is updated |
 | `BACKTEST_NEUTRAL_BAND_PCT` | `2.0` | Neutral band threshold (%), ±2% treated as range-bound |
 
+> Note: `BACKTEST_ENGINE_VERSION=v1` remains the default. The backtest service now prefers the `VbtEngine` batch forward daily-bar prefetch path before evaluating each historical analysis one by one; future engine versions can still be opted into through the same switch.
+
 ### Auto-run
 
 Backtesting triggers automatically after the daily analysis flow completes (non-blocking; failures do not affect notifications). It can also be triggered manually via API.
+
+### Parameter Optimization
+
+`POST /api/v1/backtest/optimize` uses the `VbtEngine` batch path under `BACKTEST_ENGINE_VERSION=v1` to scan the default TA parameter grid across 5,000 combinations and returns the best combination plus the full candidate list. The endpoint is experimental and does not affect the default backtest write path.
+
+Optimization results are also written to `backtest_optimization_logs` so you can revisit the latest scanned best parameters, score, and the full candidate list later.
+
+The Web backtest page also shows a summary of the latest optimization scan and can trigger a new sweep directly; it reads the same optimization-log endpoint and does not change the regular backtest result list.
+
+The expanded optimization card also shows the best parameters, the best result, and the latest 5 scans so you can compare score changes across configurations at a glance.
+The history table's "View candidates" action opens a drawer with the full candidate list for that scan, making parameter-level comparison easier.
 
 ### Evaluation Metrics
 

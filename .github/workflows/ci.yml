@@ -125,5 +125,7 @@ jobs:
         run: npm ci
       - name: 🔎 Lint
         run: npm run lint
+      - name: 🎨 Design Quality Check (Impeccable)
+        run: npx impeccable detect src/pages/ src/components/
       - name: 🏗️ Build
         run: npm run build

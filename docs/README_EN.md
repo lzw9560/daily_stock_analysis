@@ -233,6 +233,8 @@ After configuring any available AI API key, the Web `/chat` page can use strateg
 
 > DSA focuses on daily analysis reports. These sibling projects cover stock screening, strategy validation, and strategy evolution for users who want to extend the workflow. They are maintained independently today, with candidate import, backtest validation, and report handoff planned as future integration directions.
 
+Phase roadmap is available in the [standalone document](./roadmap_EN.md).
+
 | Project | Focus |
 |---------|-------|
 | [AlphaSift](https://github.com/ZhuLinsen/alphasift) | Multi-factor stock screening and full-market scanning for building candidate watchlists |

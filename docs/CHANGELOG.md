@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [改进] 前端统一使用 `StockNameDisplay` 组件展示股票名称和代码，名称区域添加主题色背景反色，提升可读性。
+- [改进] 打板助手内「综合推荐」tab 更名为「战法共振」，与一级导航「综合推荐」区分定位，避免功能混淆。
+
+- [改进] 深度分析模型选择与首页面板保持同款状态卡、快捷 chips 和切换交互，并确保切换会提交有效模型。
+- [改进] 深度分析模型选择独立复用首页模型快照，默认沿用首页当前主模型并同步候选列表。
+- [改进] 深度分析页抽出独立模型选择模块，并默认继承首页当前主模型；支持手动切换到其他模型。
+- [新功能] 深度分析页新增模型继承/自定义选项，默认沿用首页当前主模型，也可显式切换到其他模型。
+- [改进] LLM 提供商面板默认展开显示，提升“模型选择 / 检测”入口的可见性。
+- [修复] 深度分析页模型选择去掉额外跳转入口，继续沿用首页同款选择交互，并明确展示当前选择已生效。
+- [改进] LLM 提供商面板统一“当前未设置主模型 / 仅展示 / 可切换模型”文案，减少禁用渠道导致的误导。
+- [修复] LLM 提供商面板的模型检测补上真实 API Key 传递，并让模型列表保留禁用渠道的当前模型入口，避免“无法选择模型/检测无效”的卡死状态。
+- [文档] 为 Phase 2 因子流水线补充 `FACTOR_QLIB_PROVIDER_URI` 示例，说明真实 Qlib 后端的必填 provider 约束。
+- [修复] 补齐 `Config` 的 `factor_qlib_provider_uri` 字段，修复 Phase 2 因子流水线配置加载时的启动异常。
+- [修复] Docker Compose 的 `server` 服务显式固定为 `8000` 端口，并补齐 `API_PORT` 默认值，避免未定义变量带来的启动/健康检查分歧。
+- [改进] 新增任务明细通用卡片壳，统一执行任务卡、因子流水线与运行态折叠明细的视觉和交互。
+- [改进] `executionMemory.ts` 拆分为轻量 store/hook，并将 TaskPanel 的执行明细提成独立任务卡组件，便于复用与后续扩展。
+- [改进] 执行面板与首页任务卡开始共享本地参数/结果记忆，支持从最近一次模拟结果恢复仓位与预填参数。
+- [改进] 首页任务卡新增 Phase 4 可折叠执行明细，并支持一键预填跳转到 `/execution`。
+- [改进] `ScreeningRepository.save_candidates_batch` 仅保留 `ScreeningCandidateBatchPayload` 强类型入参，移除旧 `dict` 兼容分支。
+- [改进] `ScreeningRepository` 的候选入库改为显式 `ScreeningCandidatePayload`，进一步收紧 JSON 边界。
+- [改进] `ScreeningRepository` 新增因子流水线 JSON 读写 helper，减少服务层对 `factor_scores_json` 的直接拼接。
+- [改进] Phase 2 ScreeningService 的因子流水线概览改为消费显式 schema，减少中间 `Dict[str, Any]` 拼装。
+- [改进] Phase 2 因子流水线后端改用显式内部 schema 构造 payload，并同步收紧前后端字段契约。
+- [改进] 首页任务面板增加“执行面板”快捷入口，方便从分析工作台直接跳转到 Phase 4 仿真与原子执行页面。
+- [新功能] Web 侧新增 Phase 4 执行面板 `/execution`，可直接触发 `/api/v1/backtest/phase4/simulate` 并查看仿真、仓位与原子下单载荷明细。
+- [新功能] Phase 4 蒙特卡洛+原子执行骨架上线：新增 `/api/v1/backtest/phase4/simulate` 计划入口，输出 GBM/Heston/Bootstrap 仿真、VaR/Kelly 仓位与原子 WAL 下单载荷。
+- [改进] 回测优化工作台拆分为独立页面，新增最近 5 次扫描历史、最优参数展开详情和候选结果表格入口。
+- [改进] Phase 2 真实后端新增可配置训练窗口、SHAP 样本量、Qlib 标的池 / region 与 `traces` 输出，支持更稳的模型追踪和排障。
+- [改进] Phase 2 真实后端支持可配置训练窗口、SHAP 样本量、Qlib 标的池与 region，并在模型输出中补充 traces / backend_error 等可追踪信息。
+- [新功能] Phase 2 因子流水线新增显式 API：`POST /api/v1/screening/factor-pipeline/run` 触发重跑，`GET /api/v1/screening/records/{record_id}/factor-pipeline` 查看已持久化结果。
+- [改进] Phase 2 因子流水线切换为适配层优先：`FactorBackendAdapter` 在真实 `Qlib` / `LightGBM` / `SHAP` 可用时接入真实后端，缺依赖时自动回退 skeleton。
+- [新功能] 新增 Phase 2 因子流水线骨架：`FACTOR_PIPELINE_ENABLED` gate、`FactorPipelineService`、`ScreeningService` 接入，以及 `alpha158` / `alpha360` 因子摘要持久化到 `ScreeningCandidate.factor_scores_json`。
+- [文档] 新增独立阶段路线图 `docs/roadmap.md` / `docs/roadmap_EN.md`，并在 README 与文档索引中补充入口链接。
+- [文档] README 与英文版相关项目区补充四阶段计划：向量化回测、多因子选股、Agent 辩论和蒙特卡洛原子执行，并明确各阶段的 gate / opt-in 语义。
 - [改进] AlphaSift 选股入口在 Web 侧边栏中移动到“问股”下方，贴近 Agent/研究辅助工作流。
 - [改进] Docker 镜像构建阶段预置默认 AlphaSift 适配层，与桌面发布包一样避免运行期额外安装。
 - [新功能] 新增默认关闭的 AlphaSift 选股页签，通过 `ALPHASIFT_ENABLED` 开启后经由稳定适配层读取策略并执行选股。
