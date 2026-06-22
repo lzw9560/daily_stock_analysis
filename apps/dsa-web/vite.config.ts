@@ -19,17 +19,10 @@ const vendorChunkByPackage: Record<string, string> = {
   'motion-dom': 'vendor-motion',
   'motion-utils': 'vendor-motion',
   'lucide-react': 'vendor-icons',
-  recharts: 'vendor-charts',
-  'victory-vendor': 'vendor-charts',
-  '@reduxjs/toolkit': 'vendor-charts',
-  'decimal.js-light': 'vendor-charts',
-  'es-toolkit': 'vendor-charts',
-  eventemitter3: 'vendor-charts',
-  immer: 'vendor-charts',
-  'react-redux': 'vendor-charts',
-  reselect: 'vendor-charts',
-  'tiny-invariant': 'vendor-charts',
-  'use-sync-external-store': 'vendor-charts',
+  // NOTE: recharts / d3 / redux are NOT split into a vendor-charts chunk
+  // because their circular `export *` patterns cause TDZ errors when bundled
+  // in a separate chunk (e.g. "Cannot access 'Gf' before initialization").
+  // Rollup auto-chunking handles them safely.
   // Markdown renderer dependencies that are not covered by prefix rules below.
   'react-markdown': 'vendor-markdown',
   unified: 'vendor-markdown',
@@ -47,7 +40,6 @@ const vendorChunkByPackage: Record<string, string> = {
 }
 
 const vendorChunkByPackagePrefix: Array<[string, string]> = [
-  ['d3-', 'vendor-charts'],
   ['remark-', 'vendor-markdown'],
   ['micromark', 'vendor-markdown'],
   ['mdast-util-', 'vendor-markdown'],

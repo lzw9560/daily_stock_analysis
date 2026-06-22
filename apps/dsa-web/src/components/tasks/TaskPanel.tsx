@@ -1,7 +1,11 @@
 import type React from 'react';
-import { ChevronDown, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Badge, Card, StatusDot } from '../common';
 import { DashboardPanelHeader } from '../dashboard';
+import ExecutionTaskCard from './ExecutionTaskCard';
+import FactorPipelineSummaryCard from '../factorPipeline/FactorPipelineSummaryCard';
+import { TaskDetailDisclosure } from './TaskDetailCardShell';
 import type { TaskInfo } from '../../types/analysis';
 
 /**
@@ -22,6 +26,8 @@ const TaskItem: React.FC<TaskItemProps> = ({ task }) => {
   const statusTone = isProcessing ? 'info' : 'neutral';
   const progress = Math.max(0, Math.min(100, task.progress || 0));
   const traceId = (task.traceId || '').trim();
+  const factorPipeline = task.factorPipeline;
+  const runtime = task.runtime;
 
   return (
     <div className="home-subpanel flex items-center gap-3 px-3 py-2.5">
@@ -61,22 +67,63 @@ const TaskItem: React.FC<TaskItemProps> = ({ task }) => {
           </span>
         </div>
         {traceId ? (
-          <details className="group/task mt-2 text-xs">
-            <summary className="flex cursor-pointer list-none items-center gap-2 text-muted-text">
-              <span>运行诊断</span>
-              <span className="font-mono text-[11px] text-secondary-text">
-                {traceId.length > 18 ? `${traceId.slice(0, 10)}...` : traceId}
-              </span>
-              <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/task:rotate-180" aria-hidden="true" />
-            </summary>
-            <div className="mt-1 rounded-lg border border-subtle bg-base/50 px-2 py-1.5 text-muted-text">
-              <span className="mr-1">Trace:</span>
-              <code className="break-all font-mono text-[11px] text-secondary-text">
-                {traceId}
-              </code>
-            </div>
-          </details>
+          <TaskDetailDisclosure title="运行诊断" value={traceId.length > 18 ? `${traceId.slice(0, 10)}...` : traceId}>
+            <span className="mr-1">Trace:</span>
+            <code className="break-all font-mono text-[11px] text-secondary-text">
+              {traceId}
+            </code>
+          </TaskDetailDisclosure>
         ) : null}
+        {runtime ? (
+          <TaskDetailDisclosure title="运行态" value={runtime.mode}>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-muted-text">编排</div>
+                <div className="mt-1 text-secondary-text">{runtime.arch} / {runtime.mode}</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-muted-text">模型</div>
+                <div className="mt-1 break-all text-secondary-text">{runtime.provider || '—'} · {runtime.model || '—'}</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-muted-text">技能</div>
+                <div className="mt-1 break-words text-secondary-text">{runtime.skills.length > 0 ? runtime.skills.join('、') : '—'}</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-muted-text">统计</div>
+                <div className="mt-1 text-secondary-text">{runtime.totalSteps} steps · {runtime.toolCalls} tools · {runtime.totalTokens} tokens</div>
+              </div>
+            </div>
+            {runtime.debate ? (
+              <div className="mt-3 space-y-2">
+                <div className="rounded-md bg-base/70 px-2 py-1.5 text-[11px] text-secondary-text">
+                  辩论链路：{runtime.debate.stages.join(' → ')}
+                </div>
+                {runtime.debate.recentExperiences?.length ? (
+                  <div className="space-y-1.5">
+                    {runtime.debate.recentExperiences.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between gap-2 rounded-md bg-base/70 px-2 py-1 text-[11px] text-secondary-text">
+                        <span>{item.stage} · #{item.queryId}</span>
+                        <span className="font-mono">{item.score ?? '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </TaskDetailDisclosure>
+        ) : null}
+        {factorPipeline ? (
+          <div className="mt-2">
+            <FactorPipelineSummaryCard
+              title="因子流水线"
+              subtitle={factorPipeline.latestRecordId ? `#${factorPipeline.latestRecordId}${factorPipeline.latestScreeningDate ? ` · ${factorPipeline.latestScreeningDate}` : ''}` : '任务附带的因子结果'}
+              factorPipeline={factorPipeline}
+              compact
+            />
+          </div>
+        ) : null}
+        <ExecutionTaskCard task={task} compact />
       </div>
 
       {/* 状态标签 */}
@@ -148,6 +195,13 @@ export const TaskPanel: React.FC<TaskPanelProps> = ({
           headingClassName="items-center"
           actions={(
             <div className="flex items-center gap-2 text-xs text-muted-text">
+              <Link
+                to="/execution"
+                className="inline-flex items-center gap-1 rounded-full border border-cyan/20 bg-cyan/10 px-2.5 py-1 text-[11px] font-medium text-cyan transition-colors hover:border-cyan/35 hover:bg-cyan/15"
+                aria-label="打开执行面板"
+              >
+                执行面板
+              </Link>
               {processingCount > 0 && (
                 <span className="flex items-center gap-1">
                   <StatusDot tone="info" pulse className="h-1.5 w-1.5" aria-label="进行中任务" />

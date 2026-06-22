@@ -20,7 +20,34 @@ export interface ChatResponse {
   success: boolean;
   content: string;
   session_id: string;
+  runtime?: AgentRuntime;
   error?: string;
+}
+
+export interface AgentRuntimeDebateExperience {
+  id: number;
+  sessionId: string;
+  queryId: string;
+  stage: string;
+  score?: number | null;
+  createdAt?: string | null;
+}
+
+export interface AgentRuntime {
+  sessionId: string;
+  mode: string;
+  arch: string;
+  skills: string[];
+  totalSteps: number;
+  totalTokens: number;
+  provider: string;
+  model: string;
+  toolCalls: number;
+  debate?: {
+    stages: string[];
+    experienceStore: string;
+    recentExperiences?: AgentRuntimeDebateExperience[];
+  };
 }
 
 export interface SkillInfo {
@@ -47,6 +74,7 @@ export interface ChatSessionMessage {
   role: 'user' | 'assistant';
   content: string;
   created_at: string | null;
+  runtime?: AgentRuntime;
 }
 
 export const agentApi = {

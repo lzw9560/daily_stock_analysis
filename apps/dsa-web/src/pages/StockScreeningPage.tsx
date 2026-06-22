@@ -1,13 +1,28 @@
 import type React from 'react';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, CircleAlert, Play, PlusCircle, Search, SlidersHorizontal } from 'lucide-react';
+import { BarChart3, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Clock, MessageSquareQuote, Play, PlusCircle, Search, SlidersHorizontal } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import {
   alphasiftApi,
   type AlphaSiftCandidate,
   type AlphaSiftScreenResponse,
   type AlphaSiftStrategy,
+    type ScreeningRecordDetail,
+  type ScreeningRecordItem,
 } from '../api/alphasift';
-import { AppPage, Button, InlineAlert } from '../components/common';
+import { AppPage, Button, Drawer, InlineAlert, WatchlistButton } from '../components/common';
+import FactorPipelineSummaryCard from '../components/factorPipeline/FactorPipelineSummaryCard';
+import type { FactorPipelineRecordResponse, FactorPipelineSummary, FactorPipelineTriggerResponse } from '../types/screening';
+
+const toFactorPipelineSummary = (response: FactorPipelineTriggerResponse): FactorPipelineSummary => ({
+  status: response.status,
+  backend: response.backend ?? undefined,
+  factorPipelineEnabled: response.factorPipelineEnabled,
+  factorFamily: response.factorFamily ?? undefined,
+  training: response.training ?? undefined,
+  monitoring: response.monitoring ?? undefined,
+  topCandidates: response.candidates ?? undefined,
+});
 
 const MARKETS = [{ id: 'cn', label: 'A 股' }];
 
@@ -63,13 +78,116 @@ const getSignal = (item: AlphaSiftCandidate) => {
   return typeof rawSignal === 'string' && rawSignal.trim() ? rawSignal : '观察';
 };
 
+
+
+const FACTOR_INTROS = [
+  {
+    name: 'RSI',
+    weight: '技术指标',
+    title: '相对强弱指数 (Relative Strength Index)',
+    description: '衡量价格变动速度和幅度的动量震荡指标，取值范围 0-100。用于判断股票是否超买或超卖。',
+    how_it_works: 'RSI = 100 - 100/(1 + RS)，其中 RS = 平均涨幅周期 / 平均跌幅周期。通常 RSI > 70 视为超买，RSI < 30 视为超卖。',
+    signal: { high: '超卖反弹', low: '超买回调' },
+  },
+  {
+    name: 'MACD',
+    weight: '技术指标',
+    title: '平滑异同移动平均线 (Moving Average Convergence Divergence)',
+    description: '通过两条移动平均线的差值来识别趋势变化和动量转换的信号指标。',
+    how_it_works: 'MACD线 = EMA(12) - EMA(26)，信号线 = EMA(MACD线, 9)，柱状图 = MACD线 - 信号线。金叉（MACD上穿信号线）为买入信号，死叉反之。',
+    signal: { high: '金叉向上', low: '死叉向下' },
+  },
+  {
+    name: '成交量比率',
+    weight: '量能指标',
+    title: '量价关系 (Volume Ratio)',
+    description: '比较当前成交量与历史平均成交量的比值，用于识别资金流向和市场热度。',
+    how_it_works: 'VR = N日平均上涨日成交量 / N日平均下跌日成交量 × 100。放量上涨为强势信号，缩量下跌为弱势信号。',
+    signal: { high: '放量上涨', low: '缩量下跌' },
+  },
+  {
+    name: '市盈率',
+    weight: '估值指标',
+    title: '价格盈利比率 (Price-to-Earnings Ratio)',
+    description: '衡量股票价格相对于每股收益的倍数，是评估股票估值水平的核心指标。',
+    how_it_works: 'PE = 股价 / 每股收益(EPS)。低 PE 通常表示估值较低，但需结合行业特点和增长预期综合判断。',
+    signal: { high: '高估值风险', low: '低估值机会' },
+  },
+  {
+    name: '市净率',
+    weight: '估值指标',
+    title: '价格账面比 (Price-to-Book Ratio)',
+    description: '衡量股票价格相对于每股净资产的倍数，适用于评估重资产企业的价值。',
+    how_it_works: 'PB = 股价 / 每股净资产。PB < 1 表示股价低于净资产，可能存在低估；PB > 3 通常表示高估。',
+    signal: { high: '高估风险', low: '低估机会' },
+  },
+  {
+    name: '换手率',
+    weight: '流动性指标',
+    title: '股票活跃度 (Turnover Rate)',
+    description: '反映股票交易活跃程度和资金流动性的指标，高换手率通常意味着市场关注度高。',
+    how_it_works: '换手率 = 成交量 / 流通股本 × 100%。日换手率 > 7% 为活跃，> 15% 为高度活跃，需警惕过热风险。',
+    signal: { high: '高度活跃', low: '低流动性' },
+  },
+  {
+    name: '波动率',
+    weight: '风险指标',
+    title: '价格波动幅度 (Volatility)',
+    description: '衡量股票价格变动的剧烈程度，是评估投资风险的重要参考。',
+    how_it_works: '通常使用 N 日收益率的标准差来计算。高波动率意味着价格变化大，风险与机会并存。',
+    signal: { high: '高风险高收益', low: '低风险低收益' },
+  },
+  {
+    name: '营收增长率',
+    weight: '成长指标',
+    title: '企业成长性 (Revenue Growth Rate)',
+    description: '衡量企业营业收入的增长速度，反映公司的业务扩张能力和市场竞争力。',
+    how_it_works: '营收增长率 = (本期营收 - 上期营收) / 上期营收 × 100%。持续增长表明公司业务处于扩张期。',
+    signal: { high: '高速增长', low: '增长放缓' },
+  },
+  {
+    name: '净利润率',
+    weight: '盈利指标',
+    title: '盈利能力 (Net Profit Margin)',
+    description: '反映企业将收入转化为利润的能力，是评估经营效率的核心指标。',
+    how_it_works: '净利润率 = 净利润 / 营业收入 × 100%。较高的净利润率表明企业具有较强的定价权和成本控制能力。',
+    signal: { high: '强盈利', low: '弱盈利' },
+  },
+  {
+    name: '北向资金',
+    weight: '资金流向',
+    title: '外资流向 (Northbound Fund Flow)',
+    description: '追踪通过沪港通、深港通进入 A 股市场的外资动向，被视为"聪明钱"的风向标。',
+    how_it_works: '统计个股近期北向资金净流入/流出金额和比例。持续净流入通常被视为积极信号。',
+    signal: { high: '外资流入', low: '外资流出' },
+  },
+  {
+    name: '机构持仓',
+    weight: '资金流向',
+    title: '机构持仓变化 (Institutional Holding Change)',
+    description: '监测基金、保险、社保等机构投资者的持仓变动，反映专业资金的看法。',
+    how_it_works: '比较最新报告期与上一期机构持仓比例的变化。增持表明机构看好，减持则相反。',
+    signal: { high: '机构增持', low: '机构减持' },
+  },
+  {
+    name: '行业景气',
+    weight: '行业因子',
+    title: '行业景气度 (Industry Prosperity)',
+    description: '基于行业政策、供需格局、产业链动态等因素综合评估行业的整体景气水平。',
+    how_it_works: '通过行业指数表现、政策利好数量、产业链上下游数据等构建景气度评分。',
+    signal: { high: '景气上行', low: '景气下行' },
+  },
+];
+
 const getFactorEntries = (item: AlphaSiftCandidate) =>
   Object.entries(item.factorScores || {})
     .filter(([, value]) => typeof value === 'number')
     .sort((a, b) => Number(b[1]) - Number(a[1]))
     .slice(0, 6);
 
+
 const StockScreeningPage: React.FC = () => {
+  const navigate = useNavigate();
   const [enabled, setEnabled] = useState(false);
   const [market, setMarket] = useState('cn');
   const [strategy, setStrategy] = useState('dual_low');
@@ -83,6 +201,23 @@ const StockScreeningPage: React.FC = () => {
   const [loadingStrategies, setLoadingStrategies] = useState(false);
   const [error, setError] = useState('');
   const [strategyLoadError, setStrategyLoadError] = useState('');
+  const [factorPipelineLoadingRecordId, setFactorPipelineLoadingRecordId] = useState<number | null>(null);
+  const [factorPipelineError, setFactorPipelineError] = useState('');
+  const [selectedFactorPipeline, setSelectedFactorPipeline] = useState<FactorPipelineSummary | null>(null);
+  const [latestFactorPipeline, setLatestFactorPipeline] = useState<FactorPipelineSummary | null>(null);
+  // History detail state
+  const [historyDetail, setHistoryDetail] = useState<ScreeningRecordDetail | null>(null);
+  const [historyDetailLoadingRecordId, setHistoryDetailLoadingRecordId] = useState<number | null>(null);
+  const [showFactorIntro, setShowFactorIntro] = useState(false);
+  const [expandedCodeHistory, setExpandedCodeHistory] = useState<string | null>(null);
+
+
+  // History records state
+  const [records, setRecords] = useState<ScreeningRecordItem[]>([]);
+  const [recordsTotal, setRecordsTotal] = useState(0);
+  const [recordsPage, setRecordsPage] = useState(0);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const RECORDS_PAGE_SIZE = 10;
 
   const selectedStrategy = useMemo(() => strategies.find((item) => item.id === strategy), [strategies, strategy]);
   const selectedStrategyTitle = selectedStrategy?.name || selectedStrategy?.title || '自定义策略';
@@ -93,6 +228,24 @@ const StockScreeningPage: React.FC = () => {
     setCandidates([]);
     setScreenMeta(null);
     setExpandedCode(null);
+    setLatestFactorPipeline(null);
+  };
+
+  const loadRecords = async (page = recordsPage) => {
+    setRecordsLoading(true);
+    try {
+      const result = await alphasiftApi.getRecords({
+        limit: RECORDS_PAGE_SIZE,
+        offset: page * RECORDS_PAGE_SIZE,
+      });
+      setRecords(result.records);
+      setRecordsTotal(result.total);
+      setRecordsPage(page);
+    } catch {
+      // Silently fail - records are non-critical
+    } finally {
+      setRecordsLoading(false);
+    }
   };
 
   const loadStrategies = useCallback(async () => {
@@ -127,6 +280,8 @@ const StockScreeningPage: React.FC = () => {
         if (status.enabled) {
           void loadStrategies();
         }
+        // Always load records on mount (may have persisted history)
+        void loadRecords(0);
       })
       .catch(() => {
         if (active) {
@@ -179,6 +334,54 @@ const StockScreeningPage: React.FC = () => {
     setMaxResults(nextMaxResults);
   };
 
+  const openFactorPipeline = async (recordId: number) => {
+    setFactorPipelineLoadingRecordId(recordId);
+    setFactorPipelineError('');
+    try {
+      const response: FactorPipelineRecordResponse = await alphasiftApi.getFactorPipeline(recordId);
+      setLatestFactorPipeline(response.factorPipeline);
+      setSelectedFactorPipeline(response.factorPipeline);
+    } catch (error) {
+      setFactorPipelineError(error instanceof Error ? error.message : '加载因子流水线失败');
+    } finally {
+      setFactorPipelineLoadingRecordId(null);
+    }
+  };
+
+  const rerunFactorPipeline = async (recordId: number, screeningDate?: string, market?: string) => {
+    setFactorPipelineLoadingRecordId(recordId);
+    setFactorPipelineError('');
+    try {
+      const response: FactorPipelineTriggerResponse = await alphasiftApi.triggerFactorPipeline({
+        recordId,
+        screeningDate,
+        market,
+      });
+      const summary = toFactorPipelineSummary(response);
+      setLatestFactorPipeline(summary);
+      setSelectedFactorPipeline(summary);
+      await loadRecords(recordsPage);
+    } catch (error) {
+      setFactorPipelineError(error instanceof Error ? error.message : '触发因子流水线失败');
+    } finally {
+      setFactorPipelineLoadingRecordId(null);
+    }
+  };
+
+  // Load history record detail with candidates
+  const loadRecordDetail = async (recordId: number) => {
+    setHistoryDetailLoadingRecordId(recordId);
+    setHistoryDetail(null);
+    try {
+      const detail = await alphasiftApi.getRecordDetail(recordId);
+      setHistoryDetail(detail);
+    } catch (error) {
+      console.error('加载历史记录详情失败:', error);
+    } finally {
+      setHistoryDetailLoadingRecordId(null);
+    }
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
@@ -188,6 +391,8 @@ const StockScreeningPage: React.FC = () => {
       setScreenMeta(result);
       setCandidates(result.candidates);
       setExpandedCode(result.candidates[0]?.code ?? null);
+      // Refresh records list after successful screening
+      void loadRecords(0);
     } catch (err) {
       setCandidates([]);
       setError(err instanceof Error ? err.message : '选股失败');
@@ -233,8 +438,31 @@ const StockScreeningPage: React.FC = () => {
         title="风险提示"
         message="AlphaSift 选股结果仅用于研究和辅助判断，不构成投资建议；市场有风险，交易决策和损益由使用者自行承担。"
       />
+      {factorPipelineError ? (
+        <InlineAlert variant="danger" title="因子流水线" message={factorPipelineError} />
+      ) : null}
 
       {error ? <InlineAlert variant="danger" title="调用失败" message={error} /> : null}
+
+      <FactorPipelineSummaryCard
+        title="因子流水线结果"
+        subtitle={records[0] ? `记录 #${records[0].id}` : '最近一次筛选结果 · 支持显式重跑与只读查看'}
+        recordId={records[0]?.id ?? null}
+        factorPipeline={latestFactorPipeline}
+        loading={factorPipelineLoadingRecordId != null}
+        onOpen={() => {
+          const latestRecord = records[0];
+          if (latestRecord) {
+            void openFactorPipeline(latestRecord.id);
+          }
+        }}
+        onRerun={() => {
+          const latestRecord = records[0];
+          if (latestRecord) {
+            void rerunFactorPipeline(latestRecord.id, latestRecord.screeningDate, latestRecord.market);
+          }
+        }}
+      />
 
       <section className="rounded-2xl border border-cyan/35 bg-card/95 p-4 shadow-soft-card">
         <div className="mb-4 flex items-center justify-between gap-3">
@@ -245,6 +473,33 @@ const StockScreeningPage: React.FC = () => {
           <span className="rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-semibold text-cyan">
             {selectedStrategyTag}
           </span>
+        </div>
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            isLoading={factorPipelineLoadingRecordId != null}
+            loadingText="处理中..."
+            onClick={() => {
+              const latestRecord = records[0];
+              if (latestRecord) {
+                void rerunFactorPipeline(latestRecord.id, latestRecord.screeningDate, latestRecord.market);
+              }
+            }}
+            disabled={records.length === 0}
+          >
+            重跑最新因子
+          </Button>
+          {records[0] ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void openFactorPipeline(records[0].id)}
+            >
+              查看最新因子
+            </Button>
+          ) : null}
         </div>
 
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
@@ -378,9 +633,27 @@ const StockScreeningPage: React.FC = () => {
               AlphaSift 返回的候选会在这里展示，展开后可查看因子、风险、后置分析摘要和原始字段。
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-2 text-xs text-secondary-text">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-secondary-text hover:text-foreground hover:border-cyan/30 transition-colors"
+              onClick={() => navigate('/backtest')}
+            >
+              <BarChart3 className="h-3.5 w-3.5 text-cyan" />
+              去回测
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-secondary-text hover:text-foreground hover:border-cyan/30 transition-colors"
+              onClick={() => setShowFactorIntro(true)}
+            >
+              <BookOpen className="h-3.5 w-3.5 text-cyan" />
+              因子介绍
+            </button>
+            <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-2 text-xs text-secondary-text">
             <Search className="h-4 w-4 text-cyan" />
             {candidates.length} 条候选
+          </div>
           </div>
         </div>
 
@@ -404,6 +677,7 @@ const StockScreeningPage: React.FC = () => {
                   <th className="px-4 py-3 font-semibold">LLM</th>
                   <th className="px-4 py-3 font-semibold">风险</th>
                   <th className="px-4 py-3 font-semibold">详情</th>
+                  <th className="px-4 py-3 font-semibold">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -435,10 +709,50 @@ const StockScreeningPage: React.FC = () => {
                             {expanded ? '收起' : '展开查看'}
                           </button>
                         </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <WatchlistButton
+                              code={item.code}
+                              name={item.name || ''}
+                              score={typeof item.score === 'number' && !Number.isNaN(Number(item.score)) ? Number(item.score) : undefined}
+                              sector={item.industry || null}
+                              source="screening"
+                            />
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 rounded-lg border border-cyan/30 bg-cyan/5 px-2 py-1 text-xs text-cyan transition-colors hover:bg-cyan/10 hover:border-cyan/60"
+                              title="问股分析"
+                              onClick={() => navigate(`/chat?code=${item.code}&name=${encodeURIComponent(item.name || '')}`)}
+                            >
+                              <MessageSquareQuote className="h-3 w-3" />
+                              问股
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                       {expanded ? (
                         <tr className="border-t border-border bg-surface/45">
-                          <td colSpan={10} className="px-4 py-4">
+                          <td colSpan={11} className="px-4 py-4">
+                            {/* 快捷操作栏 */}
+                            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card/60 px-4 py-3">
+                              <span className="text-xs font-semibold text-secondary-text">快捷操作：</span>
+                              <WatchlistButton
+                                code={item.code}
+                                name={item.name || ''}
+                                score={typeof item.score === 'number' && !Number.isNaN(Number(item.score)) ? Number(item.score) : undefined}
+                                sector={item.industry || null}
+                                source="screening"
+                                size="md"
+                              />
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-2 rounded-lg border border-cyan/30 bg-cyan/5 px-3 py-1.5 text-sm text-cyan transition-colors hover:bg-cyan/10"
+                                onClick={() => navigate(`/chat?code=${item.code}&name=${encodeURIComponent(item.name || '')}`)}
+                              >
+                                <MessageSquareQuote className="h-4 w-4" />
+                                问股分析 {item.name || item.code}
+                              </button>
+                            </div>
                             <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
                               <div className="space-y-3">
                                 <div>
@@ -512,6 +826,415 @@ const StockScreeningPage: React.FC = () => {
           </div>
         )}
       </section>
+
+      {/* ===== 历史选股记录 ===== */}
+      <section className="rounded-2xl border border-border bg-card/95 p-4 shadow-soft-card">
+        <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Clock className="h-4 w-4 text-cyan" />
+          历史记录
+          {recordsTotal > 0 ? (
+            <span className="ml-2 rounded-full bg-surface px-2 py-0.5 text-xs text-secondary-text">
+              共 {recordsTotal} 条
+            </span>
+          ) : null}
+        </div>
+
+        {recordsLoading ? (
+          <div className="rounded-xl border border-dashed border-border bg-surface/70 px-5 py-10 text-center">
+            <p className="text-sm text-secondary-text">加载历史记录中...</p>
+          </div>
+        ) : records.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-surface/70 px-5 py-10 text-center">
+            <p className="text-sm font-medium text-foreground">暂无历史记录</p>
+            <p className="mt-2 text-sm text-secondary-text">
+              运行选股后，结果将自动保存并在此展示。
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-hidden rounded-xl border border-border">
+              <table className="w-full min-w-[640px] border-collapse text-sm">
+                <thead className="bg-surface text-left text-xs text-secondary-text">
+                  <tr>
+                    <th className="w-16 px-4 py-3 font-semibold">ID</th>
+                    <th className="px-4 py-3 font-semibold">日期</th>
+                    <th className="px-4 py-3 font-semibold">策略</th>
+                    <th className="px-4 py-3 font-semibold">市场</th>
+                    <th className="px-4 py-3 font-semibold">候选数</th>
+                    <th className="px-4 py-3 font-semibold">状态</th>
+                    <th className="px-4 py-3 font-semibold">耗时</th>
+                    <th className="px-4 py-3 font-semibold">因子</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.map((record) => (
+                    <tr
+                      key={record.id}
+                      className="border-t border-border transition-colors hover:bg-hover/50"
+                    >
+                      <td className="px-4 py-3 font-mono text-xs text-secondary-text">{record.id}</td>
+                      <td className="px-4 py-3 text-foreground">{record.screeningDate || '-'}</td>
+                      <td className="px-4 py-3 font-medium text-foreground">{record.strategy}</td>
+                      <td className="px-4 py-3 text-secondary-text">{record.market}</td>
+                      <td className="px-4 py-3 font-mono text-cyan">{record.candidateCount}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                            record.status === 'completed'
+                              ? 'bg-success/10 text-success'
+                              : 'bg-warning/10 text-warning'
+                          }`}
+                        >
+                          {record.status === 'completed' ? '完成' : '失败'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-secondary-text">
+                        {record.durationSeconds != null ? `${record.durationSeconds.toFixed(1)}s` : '-'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="xsm"
+                            variant="ghost"
+                            isLoading={historyDetailLoadingRecordId === record.id}
+                            loadingText="加载中"
+                            onClick={() => void loadRecordDetail(record.id)}
+                          >
+                            查看
+                          </Button>
+                          <Button
+                            size="xsm"
+                            variant="ghost"
+                            isLoading={factorPipelineLoadingRecordId === record.id}
+                            loadingText="读取中"
+                            onClick={() => void openFactorPipeline(record.id)}
+                          >
+                            因子
+                          </Button>
+                          <Button
+                            size="xsm"
+                            variant="outline"
+                            isLoading={factorPipelineLoadingRecordId === record.id}
+                            loadingText="重跑中"
+                            onClick={() => void rerunFactorPipeline(record.id, record.screeningDate, record.market)}
+                          >
+                            重跑
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {recordsTotal > RECORDS_PAGE_SIZE ? (
+              <div className="mt-4 flex items-center justify-between text-sm text-secondary-text">
+                <span>
+                  第 {recordsPage * RECORDS_PAGE_SIZE + 1}–{Math.min((recordsPage + 1) * RECORDS_PAGE_SIZE, recordsTotal)} 条，共 {recordsTotal} 条
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs transition-colors hover:border-cyan/30 hover:text-foreground disabled:opacity-40"
+                    disabled={recordsPage === 0}
+                    onClick={() => void loadRecords(recordsPage - 1)}
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    上一页
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs transition-colors hover:border-cyan/30 hover:text-foreground disabled:opacity-40"
+                    disabled={(recordsPage + 1) * RECORDS_PAGE_SIZE >= recordsTotal}
+                    onClick={() => void loadRecords(recordsPage + 1)}
+                  >
+                    下一页
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
+      </section>
+
+      {/* 因子流水线结果抽屉 */}
+      <Drawer
+        isOpen={selectedFactorPipeline != null}
+        onClose={() => setSelectedFactorPipeline(null)}
+        title="因子流水线结果"
+        width="max-w-5xl"
+      >
+        {selectedFactorPipeline ? (
+          <pre className="max-h-[70vh] overflow-auto rounded-xl border border-border bg-surface p-4 text-xs leading-6 text-secondary-text">
+            {JSON.stringify(selectedFactorPipeline, null, 2)}
+          </pre>
+        ) : null}
+      </Drawer>
+
+      {/* 历史记录详情抽屉 */}
+      <Drawer
+        isOpen={historyDetail != null}
+        onClose={() => setHistoryDetail(null)}
+        title={`历史记录 #${historyDetail?.id} · ${historyDetail?.screeningDate || ''}`}
+        width="max-w-6xl"
+      >
+        {historyDetail ? (
+          <div className="space-y-4">
+            {/* 记录概要 */}
+            <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card p-4 text-sm">
+              <div>
+                <span className="text-secondary-text">策略：</span>
+                <span className="ml-2 font-semibold text-foreground">{historyDetail.strategy}</span>
+              </div>
+              <div>
+                <span className="text-secondary-text">市场：</span>
+                <span className="ml-2 font-semibold text-foreground">{historyDetail.market}</span>
+              </div>
+              <div>
+                <span className="text-secondary-text">候选数：</span>
+                <span className="ml-2 font-semibold text-cyan">{historyDetail.candidateCount}</span>
+              </div>
+              <div>
+                <span className="text-secondary-text">状态：</span>
+                <span className="ml-2">
+                  <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                    historyDetail.status === 'completed'
+                      ? 'bg-success/10 text-success'
+                      : 'bg-warning/10 text-warning'
+                  }`}>
+                    {historyDetail.status === 'completed' ? '完成' : '失败'}
+                  </span>
+                </span>
+              </div>
+              {historyDetail.durationSeconds != null && (
+                <div>
+                  <span className="text-secondary-text">耗时：</span>
+                  <span className="ml-2 font-mono text-secondary-text">{historyDetail.durationSeconds.toFixed(1)}s</span>
+                </div>
+              )}
+              {historyDetail.errorMessage && (
+                <div className="col-span-2">
+                  <span className="text-danger">错误：</span>
+                  <span className="ml-2 text-danger">{historyDetail.errorMessage}</span>
+                </div>
+              )}
+            </div>
+
+            {/* 候选股票列表 */}
+            {historyDetail.candidates.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-surface/70 px-5 py-10 text-center">
+                <p className="text-sm text-secondary-text">该记录暂无候选股票</p>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-border">
+                <table className="w-full min-w-[800px] border-collapse text-sm">
+                  <thead className="bg-surface text-left text-xs text-secondary-text">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">#</th>
+                      <th className="px-4 py-3 font-semibold">代码</th>
+                      <th className="px-4 py-3 font-semibold">名称</th>
+                      <th className="px-4 py-3 font-semibold">行业</th>
+                      <th className="px-4 py-3 font-semibold">综合分</th>
+                      <th className="px-4 py-3 font-semibold">LLM分</th>
+                      <th className="px-4 py-3 font-semibold">风险</th>
+                      <th className="px-4 py-3 font-semibold">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyDetail.candidates.map((item) => (
+                      <tr
+                        key={item.id}
+                        className="border-t border-border transition-colors hover:bg-hover/50"
+                      >
+                        <td className="px-4 py-3 text-secondary-text">{item.rank}</td>
+                        <td className="px-4 py-3 font-mono font-semibold text-foreground">{item.code}</td>
+                        <td className="px-4 py-3 font-semibold text-foreground">{item.name || '-'}</td>
+                        <td className="px-4 py-3 text-secondary-text">{item.industry || '-'}</td>
+                        <td className="px-4 py-3 font-bold text-cyan">
+                          {item.score != null && !Number.isNaN(item.score) ? Number(item.score).toFixed(2) : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-secondary-text">
+                          {item.llmScore != null && !Number.isNaN(item.llmScore) ? Number(item.llmScore).toFixed(2) : '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-lg bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
+                            {item.riskLevel || 'unknown'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            className="text-sm font-semibold text-cyan transition-colors hover:text-foreground"
+                            type="button"
+                            onClick={() => {
+                              // Show expanded detail in-place
+                              setExpandedCodeHistory(item.code);
+                            }}
+                          >
+                            {expandedCodeHistory === item.code ? '收起' : '展开'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </Drawer>
+
+      {/* 历史记录候选详情展开行 */}
+      {expandedCodeHistory && historyDetail ? (() => {
+        const item = historyDetail.candidates.find((c) => c.code === expandedCodeHistory);
+        if (!item) return null;
+        const factors = Object.entries(item.factorScores || {})
+          .filter(([, value]) => typeof value === 'number')
+          .sort((a, b) => Number(b[1]) - Number(a[1]))
+          .slice(0, 6);
+        return (
+          <div className="rounded-xl border border-border bg-card/60 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">
+                {item.name || item.code} 详细分析
+              </h3>
+              <button
+                className="text-xs text-secondary-text hover:text-foreground"
+                type="button"
+                onClick={() => setExpandedCodeHistory(null)}
+              >
+                收起
+              </button>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-secondary-text">推荐理由</p>
+                  <p className="mt-1 text-sm leading-6 text-foreground">{item.reason || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-secondary-text">LLM 判断</p>
+                  <p className="mt-1 text-sm leading-6 text-foreground">
+                    {item.llmThesis || item.reason || '暂无 LLM 判断'}
+                  </p>
+                  <p className="mt-1 text-xs text-secondary-text">
+                    板块 {item.llmSector || '-'} · 主题 {item.llmTheme || '-'} · 置信度{' '}
+                    {item.llmConfidence != null && !Number.isNaN(item.llmConfidence)
+                      ? `${(Number(item.llmConfidence) * 100).toFixed(0)}%`
+                      : '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-secondary-text">风险标签</p>
+                  <p className="mt-1 text-sm text-foreground">
+                    {([...(item.riskFlags || []), ...(item.llmRisks || [])]).length
+                      ? [...(item.riskFlags || []), ...(item.llmRisks || [])].join('，')
+                      : '无'}
+                  </p>
+                </div>
+                {(item.llmCatalysts?.length || item.llmWatchItems?.length) && (
+                  <div>
+                    <p className="text-xs font-semibold text-secondary-text">催化因素</p>
+                    <p className="mt-1 text-sm text-foreground">
+                      {item.llmCatalysts?.length ? item.llmCatalysts.join('，') : '无'}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-secondary-text">主要因子</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {factors.length > 0 ? (
+                      factors.map(([key, value]) => (
+                        <div key={key} className="rounded-lg border border-border bg-surface px-3 py-2">
+                          <span className="block text-xs text-secondary-text">{key}</span>
+                          <span className="text-sm font-semibold text-foreground">
+                            {typeof value === 'number' ? value.toFixed(2) : '-'}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-sm text-secondary-text">无因子明细</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-secondary-text">价格信息</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-secondary-text">价格：</span>
+                      <span className="font-semibold">
+                        {item.price != null && !Number.isNaN(item.price) ? Number(item.price).toFixed(2) : '-'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-secondary-text">涨跌幅：</span>
+                      <span className="font-semibold">
+                        {item.changePct != null && !Number.isNaN(item.changePct)
+                          ? `${Number(item.changePct).toFixed(2)}%`
+                          : '-'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })() : null}
+
+      {/* 因子介绍面板 */}
+      <Drawer
+        isOpen={showFactorIntro}
+        onClose={() => setShowFactorIntro(false)}
+        title="因子介绍"
+        width="max-w-3xl"
+      >
+        <div className="space-y-4 text-sm leading-6">
+          <p className="text-secondary-text">
+            AlphaSift 选股系统使用多因子模型对股票进行评估。以下是各因子的详细说明：
+          </p>
+          <div className="space-y-3">
+            {FACTOR_INTROS.map((factor) => (
+              <div key={factor.name} className="rounded-xl border border-border bg-card p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="font-mono text-xs text-cyan">{factor.name}</span>
+                  <span className="rounded-full bg-cyan/10 px-2 py-0.5 text-xs font-semibold text-cyan">
+                    {factor.weight}
+                  </span>
+                </div>
+                <p className="font-semibold text-foreground">{factor.title}</p>
+                <p className="mt-1 text-secondary-text">{factor.description}</p>
+                {factor.how_it_works && (
+                  <div className="mt-2 rounded-lg bg-surface p-3">
+                    <p className="text-xs font-semibold text-secondary-text">计算方式</p>
+                    <p className="mt-1 text-xs leading-5 text-secondary-text">{factor.how_it_works}</p>
+                  </div>
+                )}
+                {factor.signal && (
+                  <div className="mt-2 flex items-center gap-2 text-xs">
+                    <span className="text-secondary-text">信号方向：</span>
+                    <span className="font-semibold text-success">{factor.signal.high === '买入' ? '↑' : '↓'}</span>
+                    <span>{factor.signal.high} / {factor.signal.low}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="rounded-xl border border-warning/30 bg-warning/5 p-4">
+            <p className="text-xs font-semibold text-warning">注意事项</p>
+            <ul className="mt-2 list-inside space-y-1 text-xs text-secondary-text">
+              <li>因子分数经过标准化处理，不同因子之间可能具有不同的量纲</li>
+              <li>综合评分采用加权平均方式计算，权重由模型动态调整</li>
+              <li>因子表现可能随市场环境变化而波动，建议结合多个时间窗口观察</li>
+              <li>本系统仅供参考，不构成投资建议</li>
+            </ul>
+          </div>
+        </div>
+      </Drawer>
     </AppPage>
   );
 };

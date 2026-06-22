@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { agentApi } from '../api/agent';
-import type { ChatSessionItem, ChatStreamRequest } from '../api/agent';
+import type { AgentRuntime, ChatSessionItem, ChatStreamRequest } from '../api/agent';
 import {
   getParsedApiError,
   isApiRequestError,
@@ -31,6 +31,7 @@ export interface Message {
   skillNames?: string[];
   skillName?: string;
   thinkingSteps?: ProgressStep[];
+  runtime?: AgentRuntime;
 }
 
 export interface StreamMeta {
@@ -42,6 +43,7 @@ type StreamFailureEvent = {
   type: string;
   success?: boolean;
   content?: string;
+  runtime?: AgentRuntime;
   error?: unknown;
   message?: unknown;
 };
@@ -155,6 +157,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
                 id: m.id,
                 role: m.role,
                 content: m.content,
+                runtime: (m as { runtime?: AgentRuntime }).runtime,
               })),
             });
           }
@@ -270,6 +273,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
       let buf = '';
       let finalContent: string | null = null;
       const currentProgressSteps: ProgressStep[] = [];
+      let finalRuntime: AgentRuntime | undefined;
         const processLine = (line: string) => {
           if (!line.startsWith('data: ')) return;
 
@@ -280,6 +284,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
               throw getStreamFailureError(doneEvent, '大模型调用出错，请检查 API Key 配置');
             }
             finalContent = doneEvent.content ?? '';
+            finalRuntime = doneEvent.runtime;
             return;
           }
 
@@ -336,6 +341,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
               skillNames,
               skillName,
               thinkingSteps: [...currentProgressSteps],
+              runtime: finalRuntime,
             },
           ],
         }));

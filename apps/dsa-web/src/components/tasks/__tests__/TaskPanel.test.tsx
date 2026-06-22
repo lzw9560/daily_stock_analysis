@@ -1,64 +1,93 @@
+import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { TaskPanel } from '../TaskPanel';
-import type { TaskInfo } from '../../../types/analysis';
+import { saveExecutionResult } from '../../../utils/executionMemory';
 
-const baseTask: TaskInfo = {
-  taskId: 'task-1',
-  stockCode: '600519',
-  stockName: '贵州茅台',
-  status: 'processing',
-  progress: 40,
-  message: '正在抓取最新行情',
-  reportType: 'detailed',
-  createdAt: '2026-03-21T08:00:00Z',
-};
+beforeEach(() => {
+  localStorage.clear();
+});
 
 describe('TaskPanel', () => {
-  it('renders active tasks with preserved dashboard panel styling', () => {
-    const { container } = render(
-      <TaskPanel
-        tasks={[
-          {
-            ...baseTask,
-            traceId: 'trace-task-1',
-          },
-          {
-            ...baseTask,
-            taskId: 'task-2',
-            stockCode: 'AAPL',
-            stockName: 'Apple',
-            status: 'pending',
-            message: '等待分析队列',
-          },
-        ]}
-      />,
+  it('shows an execution panel shortcut in the header', () => {
+    saveExecutionResult({
+      savedAt: '2026-06-14T10:00:00Z',
+      input: {
+        symbol: '600519',
+        side: 'buy',
+        spot: '100',
+        quantity: '100',
+        horizonDays: '10',
+        paths: '10000',
+        model: 'gbm',
+        drift: '0',
+        vol: '0.2',
+        winRate: '0.55',
+        payoffRatio: '1.5',
+        maxPositionPct: '30',
+        dryRun: true,
+      },
+      response: {
+        executionEnabled: false,
+        simulation: {
+          model: 'gbm',
+          paths: 10000,
+          horizonDays: 10,
+          meanReturn: 1.23,
+          medianReturn: 1.1,
+          p05Return: -2.2,
+          p01Return: -3.4,
+          var95: 4.5,
+          cvar95: 5.6,
+          pathsPreview: [1, 2],
+          parameters: {},
+        },
+        sizing: {
+          varLimitPct: 4.5,
+          kellyFraction: 0.25,
+          targetPositionPct: 25,
+          cappedPositionPct: 25,
+          stopLossPct: 4.5,
+          takeProfitPct: 8,
+          rationale: ['VaR95=4.50%'],
+        },
+        order: {
+          idempotencyKey: 'abc',
+          symbol: '600519',
+          side: 'buy',
+          quantity: 100,
+          price: 100,
+          orderType: 'market',
+          dryRun: true,
+          walPath: '/tmp/wal.json',
+          createdAt: '2026-06-14T10:00:00Z',
+        },
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <TaskPanel
+          tasks={[
+            {
+              taskId: 'task-1',
+              stockCode: '600519',
+              status: 'processing',
+              progress: 25,
+              reportType: 'analysis',
+              createdAt: '2026-06-14T00:00:00Z',
+            },
+          ]}
+        />
+      </MemoryRouter>,
     );
 
-    expect(screen.getByText('分析任务')).toBeInTheDocument();
-    expect(screen.getByText('1 进行中')).toBeInTheDocument();
-    expect(screen.getByText('1 等待中')).toBeInTheDocument();
-    expect(screen.getByText('贵州茅台')).toBeInTheDocument();
-    expect(screen.getByText('AAPL')).toBeInTheDocument();
-    expect(screen.getByLabelText('任务状态：分析中')).toBeInTheDocument();
-    expect(screen.getByText('运行诊断')).toBeInTheDocument();
-    expect(screen.getAllByText('trace-task-1')).toHaveLength(2);
-    expect(container.querySelector('.home-panel-card')).toBeTruthy();
-    expect(container.querySelector('.home-subpanel')).toBeTruthy();
-  });
-
-  it('does not render when there are no active tasks', () => {
-    const { container } = render(
-      <TaskPanel
-        tasks={[
-          {
-            ...baseTask,
-            status: 'completed',
-          },
-        ]}
-      />,
+    expect(screen.getByRole('link', { name: '打开执行面板' })).toHaveAttribute('href', '/execution');
+    expect(screen.getByRole('link', { name: '打开预填执行面板' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/execution?symbol=600519'),
     );
-
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText('执行任务卡')).toBeInTheDocument();
+    expect(screen.getByText('最近结果 · 仅预览')).toBeInTheDocument();
   });
 });

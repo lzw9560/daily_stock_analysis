@@ -123,8 +123,8 @@ export default function PositionMonitorPage() {
       const data = await monitorApi.getStatus();
       setStatus(data);
       setError(null);
-    } catch (e: any) {
-      setError(e?.message || '获取状态失败');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
 
@@ -139,31 +139,31 @@ export default function PositionMonitorPage() {
   // 控制操作
   const handleStart = async () => {
     setLoading(true);
-    try { await monitorApi.start(); await fetchStatus(); } catch (e: any) { setError(e?.message); }
+    try { await monitorApi.start(); await fetchStatus(); } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   };
 
   const handlePause = async () => {
     setLoading(true);
-    try { await monitorApi.pause(); await fetchStatus(); } catch (e: any) { setError(e?.message); }
+    try { await monitorApi.pause(); await fetchStatus(); } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   };
 
   const handleResume = async () => {
     setLoading(true);
-    try { await monitorApi.resume(); await fetchStatus(); } catch (e: any) { setError(e?.message); }
+    try { await monitorApi.resume(); await fetchStatus(); } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   };
 
   const handleStop = async () => {
     setLoading(true);
-    try { await monitorApi.stop(); await fetchStatus(); } catch (e: any) { setError(e?.message); }
+    try { await monitorApi.stop(); await fetchStatus(); } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   };
 
   const handleRestart = async () => {
     setLoading(true);
-    try { await monitorApi.restart({ poll_interval: 3 }); await fetchStatus(); } catch (e: any) { setError(e?.message); }
+    try { await monitorApi.restart({ poll_interval: 3 }); await fetchStatus(); } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     setLoading(false);
   };
 
@@ -175,7 +175,7 @@ export default function PositionMonitorPage() {
       setAddCode('');
       setAddName('');
       await fetchStatus();
-    } catch (e: any) { setError(e?.message); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   // 移除标的
@@ -183,7 +183,7 @@ export default function PositionMonitorPage() {
     try {
       await monitorApi.removeStock(code);
       await fetchStatus();
-    } catch (e: any) { setError(e?.message); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   // 同步自选股
@@ -191,7 +191,7 @@ export default function PositionMonitorPage() {
     try {
       await monitorApi.syncWatchlist();
       await fetchStatus();
-    } catch (e: any) { setError(e?.message); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   // 心跳测试
@@ -199,8 +199,8 @@ export default function PositionMonitorPage() {
     try {
       await monitorApi.sendHeartbeat();
       alert('飞书心跳发送成功');
-    } catch (e: any) {
-      alert('飞书心跳发送失败: ' + (e?.message || '未知错误'));
+    } catch (e: unknown) {
+      alert('飞书心跳发送失败: ' + (e instanceof Error ? e.message : String(e)));
     }
   };
 

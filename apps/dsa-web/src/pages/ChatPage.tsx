@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '../utils/cn';
 import { agentApi } from '../api/agent';
 import { systemConfigApi } from '../api/systemConfig';
-import { ApiErrorAlert, Badge, Button, ConfirmDialog, EmptyState, InlineAlert, ScrollArea, Tooltip } from '../components/common';
+import { ApiErrorAlert, Badge, Button, ConfirmDialog, EmptyState, InlineAlert, ScrollArea, StockNameDisplay, Tooltip, WatchlistButton } from '../components/common';
 import { getParsedApiError } from '../api/error';
 import type { SkillInfo } from '../api/agent';
 import { DashboardStateBlock } from '../components/dashboard';
@@ -50,6 +50,7 @@ const getMessageSkillNames = (msg: Message): string[] => {
 const getMessageSkillLabel = (msg: Message): string => getMessageSkillNames(msg).join('、');
 
 const ChatPage: React.FC = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [input, setInput] = useState('');
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -81,6 +82,20 @@ const ChatPage: React.FC = () => {
   const followUpContextRef = useRef<ChatFollowUpContext | null>(null);
   const shouldStickToBottomRef = useRef(true);
   const pendingScrollBehaviorRef = useRef<ScrollBehavior>('auto');
+
+  // 从 URL 参数读取当前分析的股票上下文（来自选股/打板等模块跳转）
+  const contextStockCode = searchParams.get('code')?.trim() || '';
+  const contextStockName = searchParams.get('name')?.trim() || '';
+  const hasStockContext = Boolean(contextStockCode && contextStockName);
+
+  // 如果从选股页面带股票参数进来，自动预填输入框
+  useEffect(() => {
+    if (hasStockContext) {
+      setInput(`分析 ${contextStockName} (${contextStockCode})`);
+    }
+    // 仅在股票上下文首次加载时预填
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextStockCode, contextStockName]);
 
   // Get localized text (default to Chinese)
   const text = getReportText('zh');
@@ -137,7 +152,10 @@ const ChatPage: React.FC = () => {
   }, []);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
-    messagesEndRef.current?.scrollIntoView({ behavior });
+    const viewport = messagesViewportRef.current;
+    if (viewport) {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+    }
   }, []);
 
   const requestScrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
@@ -551,6 +569,72 @@ const ChatPage: React.FC = () => {
     </div>
   );
 
+  const renderRuntimeDetails = (msg: Message) => {
+    const runtime = msg.runtime;
+    if (!runtime) return null;
+
+    const debateExperiences = runtime.debate?.recentExperiences || [];
+
+    return (
+      <details className="group/message-runtime mb-3 rounded-xl border border-border/60 bg-base/50 px-3 py-2 text-xs">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-muted-text">
+          <span className="flex items-center gap-2">
+            <span>运行态</span>
+            <span className="rounded-full border border-border/50 px-2 py-0.5 text-[11px] text-secondary-text">
+              {runtime.mode}
+            </span>
+          </span>
+          <span className="font-mono text-[11px] text-secondary-text">
+            {runtime.totalSteps} steps · {runtime.toolCalls} tools
+          </span>
+        </summary>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-lg border border-border/50 bg-card/60 px-2 py-2">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-text">编排</div>
+            <div className="mt-1 text-secondary-text">{runtime.arch} / {runtime.mode}</div>
+          </div>
+          <div className="rounded-lg border border-border/50 bg-card/60 px-2 py-2">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-text">模型</div>
+            <div className="mt-1 text-secondary-text break-all">{runtime.provider || '—'} · {runtime.model || '—'}</div>
+          </div>
+          <div className="rounded-lg border border-border/50 bg-card/60 px-2 py-2">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-text">技能</div>
+            <div className="mt-1 text-secondary-text break-words">{runtime.skills.length > 0 ? runtime.skills.join('、') : '—'}</div>
+          </div>
+          <div className="rounded-lg border border-border/50 bg-card/60 px-2 py-2">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-text">Token</div>
+            <div className="mt-1 text-secondary-text">{runtime.totalTokens}</div>
+          </div>
+        </div>
+
+        {runtime.debate ? (
+          <div className="mt-3 space-y-2">
+            <div className="rounded-lg border border-border/50 bg-card/60 px-2 py-2">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-text">辩论链路</div>
+              <div className="mt-1 text-secondary-text">{runtime.debate.stages.join(' → ')}</div>
+              <div className="mt-1 text-[11px] text-muted-text">store: {runtime.debate.experienceStore}</div>
+            </div>
+
+            {debateExperiences.length > 0 ? (
+              <div className="rounded-lg border border-border/50 bg-card/60 px-2 py-2">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-muted-text">最近经验</div>
+                <div className="mt-2 space-y-1.5">
+                  {debateExperiences.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between gap-2 rounded-md bg-base/70 px-2 py-1 text-[11px] text-secondary-text">
+                      <span>{item.stage} · #{item.queryId}</span>
+                      <span className="font-mono">{item.score ?? '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </details>
+    );
+  };
+
   const sidebarContent = (
     <>
       <div className="flex items-center justify-between border-b border-white/5 bg-white/2 p-3.5">
@@ -694,7 +778,7 @@ const ChatPage: React.FC = () => {
 
       {/* Main chat area */}
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="mb-4 flex-shrink-0 space-y-3">
+        <header className="mb-2 flex-shrink-0 space-y-2 md:space-y-3">
           <div className="flex items-start justify-between gap-4">
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
               <button
@@ -839,13 +923,56 @@ const ChatPage: React.FC = () => {
           ) : null}
         </header>
 
+        {/* 股票上下文栏：当从选股/打板等模块跳转时展示，支持自选操作 */}
+        {hasStockContext && (
+          <div className="mb-4 flex-shrink-0 flex flex-wrap items-center gap-3 rounded-xl border border-cyan/25 bg-cyan/5 px-4 py-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <svg
+                className="h-4 w-4 flex-shrink-0 text-cyan"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                />
+              </svg>
+              <StockNameDisplay name={contextStockName} code={contextStockCode} />
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <WatchlistButton
+                code={contextStockCode}
+                name={contextStockName}
+                source="chat"
+                size="sm"
+              />
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-secondary-text hover:text-foreground hover:border-cyan/30 transition-colors"
+                onClick={() => navigate('/backtest')}
+              >
+                <svg className="h-3 w-3 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                去回测验证
+              </button>
+              <span className="text-xs text-secondary-text">
+                输入区已预填分析提示，可直接发送或修改
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden border border-white/6 bg-card/78 glass-card">
           {/* Messages */}
           <ScrollArea
             className="relative z-10 flex-1"
             viewportRef={messagesViewportRef}
             onScroll={handleMessagesScroll}
-            viewportClassName="space-y-6 p-4 md:p-6"
+            viewportClassName="space-y-5 p-3 md:p-5"
             testId="chat-message-scroll"
           >
             {messages.length === 0 && !loading ? (
@@ -902,7 +1029,7 @@ const ChatPage: React.FC = () => {
                   </div>
                   <div
                     className={cn(
-                      'group/message min-w-0 w-fit max-w-[min(100%,48rem)] overflow-hidden px-5 py-3.5 transition-colors',
+                      'group/message min-w-0 w-fit max-w-[min(100%,56rem)] overflow-hidden px-5 py-3.5 transition-colors',
                       msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'
                     )}
                   >
@@ -927,6 +1054,7 @@ const ChatPage: React.FC = () => {
                       </div>
                     )}
                     {msg.role === 'assistant' && renderThinkingBlock(msg)}
+                    {msg.role === 'assistant' && renderRuntimeDetails(msg)}
                     {msg.role === 'assistant' &&
                       expandedThinking.has(msg.id) &&
                       msg.thinkingSteps &&
@@ -980,7 +1108,7 @@ const ChatPage: React.FC = () => {
                 <div className="w-8 h-8 rounded-full bg-elevated text-foreground flex items-center justify-center flex-shrink-0 text-xs font-bold">
                   AI
                 </div>
-                <div className="min-w-[200px] max-w-[min(100%,48rem)] overflow-hidden rounded-2xl rounded-tl-sm border border-white/6 bg-card/72 px-5 py-4">
+                <div className="min-w-[200px] max-w-[min(100%,56rem)] overflow-hidden rounded-2xl rounded-tl-sm border border-white/6 bg-card/72 px-5 py-4">
                   <div className="flex items-center gap-2.5 text-sm text-secondary-text">
                     <div className="relative w-4 h-4 flex-shrink-0">
                       <div className="absolute inset-0 rounded-full border-2 border-cyan/20" />
@@ -998,7 +1126,7 @@ const ChatPage: React.FC = () => {
           </ScrollArea>
 
           {showJumpToBottom && (
-            <div className="pointer-events-none absolute bottom-[5.75rem] right-4 z-20 md:bottom-24 md:right-6">
+            <div className="pointer-events-none absolute bottom-20 right-3 z-20 md:bottom-24 md:right-5">
               <button
                 type="button"
                 className="pointer-events-auto chat-copy-btn shadow-soft-card"
@@ -1027,7 +1155,7 @@ const ChatPage: React.FC = () => {
           )}
 
           {/* Input area */}
-          <div className="border-t border-white/6 bg-card/88 p-4 md:p-6 relative z-20">
+          <div className="border-t border-white/6 bg-card/88 p-3 md:p-6 relative z-20">
             <div className="space-y-3">
               {chatError ? <ApiErrorAlert error={chatError} /> : null}
               {isFollowUpContextLoading ? (

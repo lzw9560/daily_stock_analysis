@@ -8,6 +8,7 @@ import { Loading } from '@/components/common/Loading';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Tooltip } from '@/components/common/Tooltip';
 import { sealPlateApi } from '@/api/sealPlate';
+import { StockNameDisplay } from '@/components/common/StockNameDisplay';
 import type {
   SealPlateReportResponse, SealPlateStockResponse, SealPlateStatsResponse, SectorHot,
   RecommendationResponse, PositionRecResponse, StockRiskAnalysisResponse
@@ -57,8 +58,8 @@ export default function SealPlatePage() {
     try {
       const data = await sealPlateApi.runAnalysis({ minScore, force: true, date });
       setReport(data);
-    } catch (err: any) {
-      setError(err?.message || '获取打板数据失败');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -220,8 +221,7 @@ export default function SealPlatePage() {
         content={
           <div className="space-y-1.5 min-w-[200px]">
             <div className="flex items-center gap-2 font-semibold text-sm">
-              <span>{stock.name}</span>
-              <span className="text-muted-foreground font-mono">{stock.code}</span>
+              <StockNameDisplay name={stock.name} code={stock.code} />
             </div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
               <span className="text-muted-foreground">成交量:</span>
@@ -245,8 +245,7 @@ export default function SealPlatePage() {
         <div className="bg-card hover:bg-card/80 rounded-lg p-4 border border-border/50 transition-colors cursor-pointer">
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="text-lg font-bold truncate">{stock.name}</span>
-              <span className="text-sm text-muted-foreground flex-shrink-0">{stock.code}</span>
+              <StockNameDisplay name={stock.name} code={stock.code} />
               {index < 3 && <Crown className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
             </div>
             <div className={`text-xl font-bold flex-shrink-0 ml-2 ${getScoreColor(stock.score)}`}>
@@ -478,7 +477,7 @@ export default function SealPlatePage() {
           onClick={() => setActiveTab('combinedAnalysis')}
         >
           <Zap className="w-4 h-4" />
-          综合推荐
+          战法共振
         </button>
         <button
           className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
@@ -914,7 +913,7 @@ export default function SealPlatePage() {
         <ReviewPanel />
       )}
 
-      {/* 综合推荐Tab - 战法+建仓合并分析 */}
+      {/* 战法共振Tab - 战法+建仓合并分析 */}
       {activeTab === 'combinedAnalysis' && (
         <CombinedAnalysisPanel />
       )}
@@ -1021,8 +1020,7 @@ function RecommendationCard({
           <span className="text-sm font-mono text-muted-foreground">#{rec.rank}</span>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-lg font-bold">{rec.name}</span>
-              <span className="text-sm text-muted-foreground">{rec.code}</span>
+              <StockNameDisplay name={rec.name} code={rec.code} />
             </div>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant={rec.confidence === '高' ? 'success' : rec.confidence === '中' ? 'warning' : 'default'}>

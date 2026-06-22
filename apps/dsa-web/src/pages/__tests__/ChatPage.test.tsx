@@ -198,6 +198,52 @@ describe('ChatPage', () => {
     expect(mockClearCompletionBadge).toHaveBeenCalled();
   });
 
+
+  it('renders agent runtime details for assistant messages', async () => {
+    mockStoreState.messages = [
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        content: '分析完成',
+        runtime: {
+          sessionId: 'session-1',
+          mode: 'debate',
+          arch: 'multi',
+          skills: ['debate_research', 'debate_battle', 'debate_consensus'],
+          totalSteps: 3,
+          totalTokens: 128,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          toolCalls: 6,
+          debate: {
+            stages: ['research', 'battle', 'consensus'],
+            experienceStore: 'sqlite',
+            recentExperiences: [
+              {
+                id: 1,
+                sessionId: 'session-1',
+                queryId: 'query-1',
+                stage: 'consensus',
+                score: 0.8,
+                createdAt: '2026-03-15T10:00:00Z',
+              },
+            ],
+          },
+        },
+      },
+    ];
+
+    render(
+      <MemoryRouter initialEntries={['/chat']}>
+        <ChatPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('运行态')).toBeInTheDocument();
+    expect(screen.getByText('debate')).toBeInTheDocument();
+    expect(screen.getByText('research → battle → consensus')).toBeInTheDocument();
+    expect(screen.getByText('consensus · #query-1')).toBeInTheDocument();
+  });
   it('loads and saves the global context compression setting from the chat input area', async () => {
     render(
       <MemoryRouter initialEntries={['/chat']}>

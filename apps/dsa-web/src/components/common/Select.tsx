@@ -4,6 +4,7 @@ import { cn } from '../../utils/cn';
 interface SelectOption {
   value: string;
   label: string;
+  disabled?: boolean;
 }
 
 interface SelectProps {
@@ -58,7 +59,7 @@ export const Select: React.FC<SelectProps> = ({
             </option>
           )}
           {options.map((option) => (
-            <option key={option.value} value={option.value} className="bg-elevated text-foreground">
+            <option key={option.value} value={option.value} disabled={option.disabled} className={cn('bg-elevated text-foreground', option.disabled && 'text-muted-text')}>
               {option.label}
             </option>
           ))}

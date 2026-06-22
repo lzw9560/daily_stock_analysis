@@ -12,7 +12,16 @@ type ShellHeaderProps = {
 const TITLES: Record<string, { title: string; description: string }> = {
   '/': { title: '首页', description: '股票分析与历史报告工作台' },
   '/chat': { title: '问股', description: '多轮策略问答与历史会话管理' },
+  '/screening': { title: '选股', description: 'AlphaSift 智能选股与量化筛选' },
   '/backtest': { title: '回测', description: '回测任务与结果浏览' },
+  '/backtest/optimization': { title: '回测优化', description: '参数扫描、候选对比与历史扫描' },
+  '/seal-plate': { title: '打板', description: '打板推荐、封板分析与股票池管理' },
+  '/comprehensive': { title: '综合推荐', description: '多维信号聚合与仓位管理' },
+  '/alerts': { title: '告警', description: '实时告警规则与通知管理' },
+  '/position-monitor': { title: '持仓监控', description: '实时持仓监控与风险预警' },
+  '/deep-analysis': { title: '深度分析', description: 'TradingAgents 多Agent投研 — 7位AI分析师深度研判' },
+  '/recommendation-tracking': { title: '推荐追踪', description: '历史推荐记录追踪、胜率回溯与策略反思' },
+  '/strategy-optimizer': { title: '策略优化', description: '自适应参数调优、信号过滤、交易纪律与风险预警' },
   '/settings': { title: '设置', description: '系统配置、模型与认证管理' },
 };
 

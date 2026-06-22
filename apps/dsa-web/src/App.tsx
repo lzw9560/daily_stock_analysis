@@ -13,15 +13,20 @@ import './App.css';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const BacktestPage = lazy(() => import('./pages/BacktestPage'));
+const BacktestOptimizationPage = lazy(() => import('./pages/BacktestOptimizationPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
-const PortfolioPage = lazy(() => import('./pages/PortfolioPage'));
 const SealPlatePage = lazy(() => import('./pages/SealPlatePage'));
 const PositionMonitorPage = lazy(() => import('./pages/PositionMonitorPage'));
 const AlertsPage = lazy(() => import('./pages/AlertsPage'));
 const StockScreeningPage = lazy(() => import('./pages/StockScreeningPage'));
+const ComprehensiveRecommendationPage = lazy(() => import('./pages/ComprehensiveRecommendationPage'));
+const DeepAnalysisPage = lazy(() => import('./pages/DeepAnalysisPage'));
+const RecommendationTrackingPage = lazy(() => import('./pages/RecommendationTrackingPage'));
+const StrategyOptimizerPage = lazy(() => import('./pages/StrategyOptimizerPage'));
+const Phase4ExecutionPage = lazy(() => import('./pages/Phase4ExecutionPage'));
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -79,11 +84,16 @@ const AppContent: React.FC = () => {
       >
         <Route path="/" element={<HomePage />} />
         <Route path="/chat" element={<ChatPage />} />
-        <Route path="/portfolio" element={<PortfolioPage />} />
         <Route path="/screening" element={<StockScreeningPage />} />
         <Route path="/backtest" element={<BacktestPage />} />
+        <Route path="/backtest/optimization" element={<BacktestOptimizationPage />} />
         <Route path="/seal-plate" element={<SealPlatePage />} />
+        <Route path="/comprehensive" element={<ComprehensiveRecommendationPage />} />
         <Route path="/position-monitor" element={<PositionMonitorPage />} />
+        <Route path="/deep-analysis" element={<DeepAnalysisPage />} />
+        <Route path="/recommendation-tracking" element={<RecommendationTrackingPage />} />
+        <Route path="/strategy-optimizer" element={<StrategyOptimizerPage />} />
+        <Route path="/execution" element={<Phase4ExecutionPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />

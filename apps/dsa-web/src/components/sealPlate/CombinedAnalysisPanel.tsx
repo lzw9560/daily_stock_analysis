@@ -10,11 +10,12 @@ import { Badge } from '@/components/common/Badge';
 import { Loading } from '@/components/common/Loading';
 import { EmptyState } from '@/components/common/EmptyState';
 import { sealPlateApi } from '@/api/sealPlate';
+import { StockNameDisplay } from '@/components/common/StockNameDisplay';
 import type {
-  PositionRecResponse, WinRateResponse, StrategyItem, MultiMatchAnalysis,
+  PositionRecResponse, WinRateResponse, StrategyItem, MultiMatchAnalysis, MultiMatchEntryPoint,
 } from '@/types/sealPlate';
 
-/** 综合推荐结果 */
+/** 战法共振结果 */
 interface CombinedResult {
   strategies: StrategyItem[];
   multiMatch: MultiMatchAnalysis[];
@@ -48,8 +49,8 @@ export default function CombinedAnalysisPanel() {
         recommendations: recRes.recommendations,
         generatedAt: new Date().toISOString(),
       });
-    } catch (err: any) {
-      setError(err?.message || '获取综合分析数据失败');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -160,7 +161,7 @@ export default function CombinedAnalysisPanel() {
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Zap className="w-5 h-5 text-yellow-500" />
-            综合推荐分析
+            战法共振分析
             <Badge variant="info" className="text-xs">战法+建仓</Badge>
           </h2>
           <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
@@ -180,13 +181,13 @@ export default function CombinedAnalysisPanel() {
           <Card className="p-3 text-center">
             <p className="text-xs text-muted-foreground">总胜率</p>
             <p className="text-xl font-bold text-green-500">
-              {(data.winRate.winRate * 100).toFixed(1)}%
+              {data.winRate.winRate.toFixed(1)}%
             </p>
           </Card>
           <Card className="p-3 text-center">
             <p className="text-xs text-muted-foreground">近10笔胜率</p>
             <p className="text-xl font-bold text-blue-500">
-              {(data.winRate.rollingWinRate10 * 100).toFixed(1)}%
+              {data.winRate.rollingWinRate10.toFixed(1)}%
             </p>
           </Card>
           <Card className="p-3 text-center">
@@ -236,9 +237,9 @@ export default function CombinedAnalysisPanel() {
               .map(s => (
                 <Badge
                   key={s.sector}
-                  variant={s.rate >= 0.6 ? 'success' : s.rate >= 0.4 ? 'warning' : 'danger'}
+                  variant={s.rate >= 60 ? 'success' : s.rate >= 40 ? 'warning' : 'danger'}
                 >
-                  {s.sector}: {(s.rate * 100).toFixed(0)}% ({s.won}/{s.total})
+                  {s.sector}: {s.rate.toFixed(0)}% ({s.won}/{s.total})
                 </Badge>
               ))}
           </div>
@@ -313,7 +314,7 @@ export default function CombinedAnalysisPanel() {
       )}
 
       {combinedRankings.length === 0 && (
-        <EmptyState title="暂无推荐标的" description="当前无符合条件的综合推荐" />
+        <EmptyState title="暂无推荐标的" description="当前无符合条件的共振标的" />
       )}
 
       {/* 高胜率战法总览 */}
@@ -338,7 +339,7 @@ export default function CombinedAnalysisPanel() {
                       </span>
                       <Badge variant="info" className="text-xs">{strategy.type}</Badge>
                       <span className="text-sm text-muted-foreground">
-                        胜率 {(strategy.winRate * 100).toFixed(0)}%
+                        胜率 {strategy.winRate.toFixed(0)}%
                       </span>
                       <Badge variant={strategy.currentSuitability >= 70 ? 'success' : strategy.currentSuitability >= 50 ? 'warning' : 'danger'}>
                         适配度 {strategy.currentSuitability}%
@@ -380,7 +381,7 @@ export default function CombinedAnalysisPanel() {
                           {strategy.entryModes.map((em, i) => (
                             <div key={i} className="flex items-center gap-2 text-xs ml-2">
                               <span>{em.name}</span>
-                              <Badge variant="info" className="text-xs">胜率 {(em.winRate * 100).toFixed(0)}%</Badge>
+                              <Badge variant="info" className="text-xs">胜率 {em.winRate.toFixed(0)}%</Badge>
                               <span className="text-muted-foreground">{em.desc}</span>
                             </div>
                           ))}
@@ -403,7 +404,11 @@ export default function CombinedAnalysisPanel() {
   );
 }
 
-/** 单个综合推荐卡片 */
+type CombinedRankingItem = MultiMatchAnalysis & {
+  recommendation: PositionRecResponse | null;
+};
+
+/** 单个共振卡片 */
 function CombinedCard({
   item,
   expanded,
@@ -411,7 +416,7 @@ function CombinedCard({
   getScoreColor,
   getRiskBadge,
 }: {
-  item: any;
+  item: CombinedRankingItem;
   expanded: boolean;
   onToggle: () => void;
   getScoreColor: (score: number) => string;
@@ -422,8 +427,7 @@ function CombinedCard({
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-1">
-            <span className="font-semibold text-base">{item.name}</span>
-            <span className="text-sm text-muted-foreground font-mono">{item.code}</span>
+            <StockNameDisplay name={item.name} code={item.code} />
             {item.matchCount >= 2 && <Crown className="w-4 h-4 text-yellow-500" />}
             {item.sector && (
               <Badge variant="info" className="text-xs">{item.sector}</Badge>
@@ -500,7 +504,7 @@ function CombinedCard({
             <div>
               <p className="text-xs font-semibold text-muted-foreground mb-1">建仓点位：</p>
               <div className="space-y-1">
-                {item.entryPoints.map((ep: any, i: number) => (
+                {item.entryPoints.map((ep: MultiMatchEntryPoint, i: number) => (
                   <div key={i} className="flex items-center gap-3 text-sm bg-card/50 p-1.5 rounded">
                     <Badge variant={ep.type === 'ideal' ? 'success' : 'warning'} className="text-xs">
                       {ep.price.toFixed(2)}

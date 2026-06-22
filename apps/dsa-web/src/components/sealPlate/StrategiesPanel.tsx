@@ -9,6 +9,7 @@ import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Loading } from '@/components/common/Loading';
 import { sealPlateApi } from '@/api/sealPlate';
+import { StockNameDisplay } from '@/components/common/StockNameDisplay';
 import type { StrategyResponse, StrategyItem, StrategyCandidate, MultiMatchResponse, MultiMatchAnalysis } from '@/types/sealPlate';
 
 // ---- 内建战法库（前端常量，后端补充动态适配） ----
@@ -496,8 +497,7 @@ function MultiMatchCard({ item }: { item: MultiMatchAnalysis }) {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-bold text-lg">{item.name}</span>
-              <span className="text-xs text-muted-foreground">{item.code}</span>
+              <StockNameDisplay name={item.name} code={item.code} />
               {item.sector && <Badge variant="info">{item.sector}</Badge>}
             </div>
             <div className="flex items-center gap-2 mt-1">
@@ -519,7 +519,7 @@ function MultiMatchCard({ item }: { item: MultiMatchAnalysis }) {
             <span className="text-xs text-muted-foreground">分</span>
           </div>
           <Badge variant={item.compositeScore >= 75 ? 'success' : 'warning'}>
-            综合推荐
+            共振推荐
           </Badge>
         </div>
       </div>

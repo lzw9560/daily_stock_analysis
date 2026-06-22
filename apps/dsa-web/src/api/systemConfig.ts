@@ -6,6 +6,7 @@ import type {
   DiscoverLLMChannelModelsResponse,
   ExportSystemConfigResponse,
   ImportSystemConfigRequest,
+  ModelStatusResponse,
   SetupStatusResponse,
   SystemConfigConflictResponse,
   SystemConfigResponse,
@@ -198,6 +199,11 @@ export const systemConfigApi = {
       toSnakeDiscoverModelsPayload(payload),
     );
     return toCamelCase<DiscoverLLMChannelModelsResponse>(response.data);
+  },
+
+  async getModelStatus(): Promise<ModelStatusResponse> {
+    const response = await apiClient.get<Record<string, unknown>>('/api/v1/system/config/model-status');
+    return toCamelCase<ModelStatusResponse>(response.data);
   },
 
   async update(payload: UpdateSystemConfigRequest): Promise<UpdateSystemConfigResponse> {

@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
-import { Check, Minus, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Check, Minus, Sparkles, X } from 'lucide-react';
 import { backtestApi } from '../api/backtest';
 import type { ParsedApiError } from '../api/error';
 import { getParsedApiError } from '../api/error';
@@ -192,6 +193,7 @@ const RunSummary: React.FC<{ data: BacktestRunResponse }> = ({ data }) => (
 // ============ Main Page ============
 
 const BacktestPage: React.FC = () => {
+  const navigate = useNavigate();
   // Set page title
   useEffect(() => {
     document.title = '策略回测 - DSA';
@@ -362,7 +364,7 @@ const BacktestPage: React.FC = () => {
   return (
     <div className="min-h-full flex flex-col rounded-[1.5rem] bg-transparent">
       {/* Header */}
-      <header className="flex-shrink-0 border-b border-white/5 px-3 py-3 sm:px-4">
+      <header className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/5 px-3 py-3 sm:px-4">
         <div className="flex max-w-5xl flex-wrap items-center gap-2">
           <div className="relative min-w-0 flex-[1_1_220px]">
             <input
@@ -457,6 +459,10 @@ const BacktestPage: React.FC = () => {
             )}
           </button>
         </div>
+        <button type="button" className="btn-secondary flex items-center gap-2 whitespace-nowrap" onClick={() => navigate('/backtest/optimization')}>
+          <Sparkles className="h-4 w-4" />
+          优化工作台
+        </button>
         {runResult && (
           <div className="mt-2 max-w-4xl">
             <RunSummary data={runResult} />

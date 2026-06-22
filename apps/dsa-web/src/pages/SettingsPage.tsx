@@ -350,6 +350,8 @@ const SettingsPage: React.FC = () => {
     'OPENAI_MODEL',
     'OPENAI_VISION_MODEL',
     'OPENAI_TEMPERATURE',
+    'AGNES_API_KEY',
+    'AGNES_API_BASE',
     'VISION_MODEL',
   ]);
   const SYSTEM_HIDDEN_KEYS = new Set([

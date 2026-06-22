@@ -45,12 +45,13 @@ export default function ReviewPanel() {
       setReview(detail);
       setHistory(hist.items);
       setEvolution(evo.evolution);
-    } catch (e: any) {
-      if (e?.response?.status === 404) {
+    } catch (e: unknown) {
+      const err = e as { response?: { status?: number }; message?: string };
+      if (err?.response?.status === 404) {
         setReview(null);
         setError(null); // 还没复盘数据，不算错误
       } else {
-        setError(e?.message || '加载复盘数据失败');
+        setError(err?.message || '加载复盘数据失败');
       }
     } finally {
       setLoading(false);
@@ -66,8 +67,8 @@ export default function ReviewPanel() {
         // 刷新数据
         await fetchReview();
       }
-    } catch (e: any) {
-      setError(e?.message || '自动复盘失败');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setAutoReviewing(false);
     }
@@ -80,8 +81,8 @@ export default function ReviewPanel() {
       await sealPlateApi.updateReviewNotes(review.date, notesDraft);
       setReview({ ...review, notes: notesDraft });
       setEditingNotes(false);
-    } catch (e: any) {
-      setError(e?.message || '保存备注失败');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -188,7 +189,7 @@ export default function ReviewPanel() {
       </div>
 
       {/* ===== LLM 核心结论 ===== */}
-      <Card className="p-4 border-l-4 border-l-purple-500 bg-purple-50/50">
+      <Card className="p-4 ring-1 ring-purple-500 bg-purple-50/50">
         <div className="flex items-start gap-3">
           <Sparkles className="h-5 w-5 text-purple-600 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
@@ -310,7 +311,7 @@ export default function ReviewPanel() {
         <div className="space-y-4">
 
           {/* 仓位建议 */}
-          <Card className="p-4 border-l-4 border-l-blue-500">
+          <Card className="p-4 ring-1 ring-blue-500">
             <div className="flex items-center gap-2 mb-2">
               <Shield className="h-4 w-4 text-blue-600" />
               <span className="font-semibold text-sm">仓位管理建议</span>

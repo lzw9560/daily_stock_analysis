@@ -47,6 +47,22 @@ vi.mock('./pages/BacktestPage', () => ({
   default: () => <div data-testid="backtest-page">Backtest</div>,
 }));
 
+vi.mock('./pages/SealPlatePage', () => ({
+  default: () => <div data-testid="seal-plate-page">SealPlat</div>,
+}));
+
+vi.mock('./pages/ComprehensiveRecommendationPage', () => ({
+  default: () => <div data-testid="comprehensive-page">Comprehensive</div>,
+}));
+
+vi.mock('./pages/StockScreeningPage', () => ({
+  default: () => <div data-testid="screening-page">Screening</div>,
+}));
+
+vi.mock('./pages/PositionMonitorPage', () => ({
+  default: () => <div data-testid="position-monitor-page">PositionMonitor</div>,
+}));
+
 vi.mock('./pages/AlertsPage', () => ({
   default: () => <div data-testid="alerts-page">Alerts</div>,
 }));
@@ -102,13 +118,13 @@ describe('App routing behavior', () => {
       loggedIn: false,
       setupState: 'enabled',
     }));
-    window.history.pushState({}, '', '/portfolio');
+    window.history.pushState({}, '', '/seal-plate');
 
     render(<App />);
 
     expect(await screen.findByTestId('login-page')).toBeInTheDocument();
     expect(window.location.pathname).toBe('/login');
-    expect(window.location.search).toBe('?redirect=%2Fportfolio');
+    expect(window.location.search).toBe('?redirect=%2Fseal-plate');
   });
 
   it('renders the current route page after auth is ready', async () => {
@@ -150,9 +166,9 @@ describe('App routing behavior', () => {
       expect(screen.getByRole('button', { name: '返回首页' })).toBeInTheDocument();
 
       chatPageShouldThrow.value = false;
-      fireEvent.click(screen.getByRole('link', { name: '持仓' }));
+      fireEvent.click(screen.getByRole('link', { name: '打板' }));
 
-      expect(await screen.findByTestId('portfolio-page')).toBeInTheDocument();
+      expect(await screen.findByTestId('seal-plate-page')).toBeInTheDocument();
       expect(screen.queryByRole('heading', { name: '页面加载失败' })).not.toBeInTheDocument();
     } finally {
       consoleError.mockRestore();

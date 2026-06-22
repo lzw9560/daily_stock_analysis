@@ -686,3 +686,149 @@ export interface AvailableDatesResponse {
     sentimentPhase: string;
   }[];
 }
+
+// ============ 综合推荐系统 ============
+
+export interface BuySellAnalysis {
+  code: string;
+  name: string;
+  buyWillingness: number;
+  sellWillingness: number;
+  idealBuyPrice: number;
+  buyRangeLow: number;
+  buyRangeHigh: number;
+  stopLossPrice: number;
+  takeProfitShort: number;
+  takeProfitLong: number;
+  entryStrategy: string;
+  exitStrategy: string;
+  buySignals: string[];
+  sellSignals: string[];
+}
+
+export interface TermAdvice {
+  term: string;
+  label: string;
+  action: string;
+  confidence: string;
+  targetReturnPct: number;
+  holdDays: string;
+  strategyDesc: string;
+  riskLevel: string;
+  keyLevels: string[];
+}
+
+export interface SectorRotation {
+  hotSectors: { name: string; count: number; status?: string; heat?: number }[];
+  coolingSectors: { name: string; count?: number; netOutflow?: number; status?: string }[];
+  nextPotentialSectors: { name: string; historicalWinRate?: number; reason: string }[];
+  rotationPhase: string;
+  rotationScore: number;
+  hotMoneyFocus: string[];
+  institutionFocus: string[];
+  suggestions: string[];
+}
+
+export interface RiskAssessment {
+  overallRiskScore: number;
+  overallRiskLevel: string;
+  marketRisk: number;
+  positionRisk: number;
+  sectorConcentrationRisk: number;
+  liquidityRisk: number;
+  sentimentRisk: number;
+  riskFactors: string[];
+  riskMitigations: string[];
+  maxRecommendedPosition: number;
+}
+
+export interface IndividualStockRisk {
+  code: string;
+  name: string;
+  riskScore: number;
+  riskLevel: string;
+  valuationRisk: number;
+  technicalRisk: number;
+  fundFlowRisk: number;
+  sentimentRisk: number;
+  sectorRisk: number;
+  liquidityRisk: number;
+  blackSwanRisk: number;
+  riskItems: { type: string; level: string; desc: string }[];
+  suggestions: string[];
+  positionLimitPct: number;
+}
+
+export interface DynamicPosition {
+  totalCapital: number;
+  currentPositionPct: number;
+  targetPositionPct: number;
+  maxPositionPct: number;
+  cashReservePct: number;
+  stockWeights: {
+    code: string;
+    name: string;
+    weightPct: number;
+    weight?: number;       // 兼容旧字段名
+    suggestedPct?: number;
+    suggestion?: string;   // 兼容旧字段名
+    confidence?: string;
+  }[];
+  adjustmentReason: string;
+  rebalancingNeeded: boolean;
+}
+
+export interface FactorCorrelation {
+  factorName: string;
+  currentValue: number;
+  zScore: number;
+  correlationWithMarket: number;
+  status: string;
+  warningMsg: string;
+}
+
+export interface StressTestResult {
+  scenario: string;
+  maxDrawdownPct: number;
+  portfolioLossPct: number;
+  recoveryDaysEst: number;
+  circuitBreakerTriggered: boolean;
+  circuitBreakerLevel: string;
+  suggestedAction: string;
+  impactOnHoldings: { code: string; name: string; loss: number }[];
+}
+
+export interface ComprehensiveRecommendationResponse {
+  date: string;
+  label: string;
+  generatedAt: string;
+  sentimentIndex: number;
+  sentimentPhase: string;
+  totalLimitUp: number;
+  marketHeatScore: number;
+  fundSentiment: string;
+  buySellAnalyses: BuySellAnalysis[];
+  termAdvices: TermAdvice[];
+  sectorRotation: SectorRotation | null;
+  riskAssessment: RiskAssessment | null;
+  individualStockRisks: IndividualStockRisk[];
+  dynamicPosition: DynamicPosition | null;
+  factorCorrelations: FactorCorrelation[];
+  stressTestResults: StressTestResult[];
+  strategyAdjustments: string[];
+  adjustmentReasons: string[];
+  winRateInfo: Record<string, unknown>;
+}
+
+export interface WinRateBriefResponse {
+  total: number;
+  settled: number;
+  won: number;
+  lost: number;
+  pending: number;
+  winRate: number;
+  avgReturn: number;
+  rolling10: number;
+  trend: string;
+  bySector: Record<string, { won: number; total: number; rate: number }>;
+}

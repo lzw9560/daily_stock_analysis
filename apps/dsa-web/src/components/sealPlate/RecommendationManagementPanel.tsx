@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Target, Calendar, BarChart3,
-  Search, RefreshCw, ChevronLeft, ChevronRight, ChevronDown, ChevronRight as ChevronRightIcon,
+  Search, RefreshCw, ChevronLeft, ChevronDown, ChevronRight as ChevronRightIcon,
   Info, AlertTriangle, Star, ExternalLink, Clock, Layers,
 } from 'lucide-react';
 import { Button } from '@/components/common/Button';
@@ -10,6 +10,7 @@ import { Badge } from '@/components/common/Badge';
 import { Loading } from '@/components/common/Loading';
 import { EmptyState } from '@/components/common/EmptyState';
 import { sealPlateApi } from '@/api/sealPlate';
+import { StockNameDisplay } from '@/components/common/StockNameDisplay';
 import type {
   RecommendationRecordListResponse, WinRateBacktestResponse,
   HistoricalWinRateResponse, AvailableDatesResponse, RecommendationRecordResponse,
@@ -91,10 +92,10 @@ function RecommendationRecordsPanel() {
       };
       if (dateFrom) (params as Record<string, string>).dateFrom = dateFrom.replace(/-/g, '');
       if (dateTo) (params as Record<string, string>).dateTo = dateTo.replace(/-/g, '');
-      const result = await sealPlateApi.getRecommendationRecords(params as any);
+      const result = await sealPlateApi.getRecommendationRecords(params as Record<string, string>);
       setData(result);
-    } catch (err: any) {
-      setError(err?.message || '获取推荐记录失败');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -243,8 +244,7 @@ function RecommendationRecordsPanel() {
                           className="font-bold text-sm hover:text-blue-500 transition-colors flex items-center gap-1 truncate"
                           title={`点击查看 ${rec.name}(${rec.code}) 详细分析`}
                         >
-                          {rec.name}
-                          <span className="text-xs text-muted-foreground font-mono">{rec.code}</span>
+                          <StockNameDisplay name={rec.name} code={rec.code} />
                           <ExternalLink className="w-3 h-3 opacity-50" />
                         </a>
                         <Badge variant={
@@ -368,7 +368,7 @@ function RecommendationRecordsPanel() {
             disabled={page >= totalPages - 1}
             onClick={() => setPage(p => p + 1)}
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRightIcon className="w-4 h-4" />
           </Button>
         </div>
       )}
@@ -393,8 +393,8 @@ function WinRateBacktestPanel() {
     try {
       const result = await sealPlateApi.getWinRateBacktest({ days });
       setData(result);
-    } catch (err: any) {
-      setError(err?.message || '获取胜率回溯失败');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -403,6 +403,18 @@ function WinRateBacktestPanel() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const winRateDistribution = useMemo(() => {
+    if (!data?.dailyRecords) return { high: 0, medium: 0, low: 0 };
+    let high = 0, medium = 0, low = 0;
+    for (const d of data.dailyRecords) {
+      if (d.settledCount === 0) continue;
+      if (d.winRate >= 60) high++;
+      else if (d.winRate >= 40) medium++;
+      else low++;
+    }
+    return { high, medium, low };
+  }, [data]);
 
   if (loading && !data) {
     return <Loading label="计算胜率回溯..." />;
@@ -419,19 +431,6 @@ function WinRateBacktestPanel() {
       </Card>
     );
   }
-
-  // 计算统计数据
-  const winRateDistribution = useMemo(() => {
-    if (!data?.dailyRecords) return { high: 0, medium: 0, low: 0 };
-    let high = 0, medium = 0, low = 0;
-    for (const d of data.dailyRecords) {
-      if (d.settledCount === 0) continue;
-      if (d.winRate >= 60) high++;
-      else if (d.winRate >= 40) medium++;
-      else low++;
-    }
-    return { high, medium, low };
-  }, [data]);
 
   return (
     <div className="space-y-6">
@@ -475,7 +474,7 @@ function WinRateBacktestPanel() {
           <div className="text-xs text-muted-foreground mt-1">平均收益</div>
         </Card>
         <Card className="p-4 text-center">
-          <div className="text-3xl font-bold text-purple-500">{data?.totalSettled || 0}</div>
+          <div className="text-3xl font-bold text-primary">{data?.totalSettled || 0}</div>
           <div className="text-xs text-muted-foreground mt-1">已结算 ({data?.totalWon || 0}赢)</div>
         </Card>
       </div>
@@ -651,8 +650,8 @@ function HistoricalWinRatePanel() {
     try {
       const result = await sealPlateApi.getHistoricalWinRate(selectedDate.replace(/-/g, ''), lookbackDays);
       setData(result);
-    } catch (err: any) {
-      setError(err?.message || '查询失败');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }

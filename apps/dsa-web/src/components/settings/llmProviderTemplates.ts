@@ -200,6 +200,18 @@ export const LLM_PROVIDER_TEMPLATES: LLMProviderTemplate[] = [
     officialSources: [{ label: 'Ollama API', url: 'https://github.com/ollama/ollama/blob/main/docs/api.md' }],
   },
   {
+    channelId: 'juliang',
+    label: '巨量聚合 Juliang（多模型聚合）',
+    protocol: 'openai',
+    baseUrl: 'https://juliang.pro/proxy/v1',
+    placeholderModels: 'gpt-5.4-mini,claude-sonnet-4-6,gemini-3-flash-preview,deepseek-v4-pro',
+    capabilities: ['openai-compatible', 'aggregator'],
+    configHint: '一个 API Key 通用所有模型（OpenAI / Claude / Gemini / DeepSeek / Qwen 等）。',
+    officialSources: [
+      { label: 'Juliang API Docs', url: 'https://juliang.apifox.cn/' },
+    ],
+  },
+  {
     channelId: 'custom',
     label: '自定义渠道',
     protocol: 'openai',

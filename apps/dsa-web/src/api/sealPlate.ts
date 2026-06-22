@@ -37,6 +37,8 @@ import type {
   WinRateBacktestResponse,
   HistoricalWinRateResponse,
   AvailableDatesResponse,
+  ComprehensiveRecommendationResponse,
+  WinRateBriefResponse,
 } from '../types/sealPlate';
 
 // ============ API ============
@@ -577,5 +579,61 @@ export const sealPlateApi = {
       '/api/v1/seal-plate/recommendation-dates'
     );
     return toCamelCase<AvailableDatesResponse>(response.data);
+  },
+
+  // ============ 综合推荐系统 ============
+
+  /**
+   * 获取综合推荐仪表盘（10维分析）
+   */
+  getComprehensiveRecommendations: async (date?: string): Promise<ComprehensiveRecommendationResponse> => {
+    const queryParams: Record<string, string> = {};
+    if (date) queryParams.date = date;
+
+    const response = await apiClient.get<ComprehensiveRecommendationResponse>(
+      '/api/v1/comprehensive',
+      { params: queryParams }
+    );
+    return toCamelCase<ComprehensiveRecommendationResponse>(response.data);
+  },
+
+  /**
+   * 获取胜率简报
+   */
+  getWinRateBrief: async (): Promise<WinRateBriefResponse> => {
+    const response = await apiClient.get<WinRateBriefResponse>(
+      '/api/v1/comprehensive/win-rate-brief'
+    );
+    return toCamelCase<WinRateBriefResponse>(response.data);
+  },
+
+  /**
+   * 从仓位管理中移除指定标的
+   */
+  removePositionStock: async (code: string): Promise<{ success: boolean; code: string; excludedCount: number }> => {
+    const response = await apiClient.delete(
+      `/api/v1/comprehensive/position/stocks/${code}`
+    );
+    return response.data;
+  },
+
+  /**
+   * 获取已排除的仓位标的列表
+   */
+  getExcludedStocks: async (): Promise<{ excludedCodes: string[]; count: number }> => {
+    const response = await apiClient.get(
+      '/api/v1/comprehensive/position/stocks/excluded'
+    );
+    return response.data;
+  },
+
+  /**
+   * 恢复已排除的仓位标的
+   */
+  restorePositionStock: async (code: string): Promise<{ success: boolean; code: string }> => {
+    const response = await apiClient.delete(
+      `/api/v1/comprehensive/position/stocks/excluded/${code}`
+    );
+    return response.data;
   },
 };

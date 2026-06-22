@@ -124,8 +124,8 @@ export default function DataSourcePanel() {
     try {
       const data = await sealPlateApi.getDataSourcesHealth();
       setHealth(data);
-    } catch (err: any) {
-      setError(err?.message || '获取数据源状态失败');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }

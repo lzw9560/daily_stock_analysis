@@ -2,15 +2,45 @@ import React from 'react';
 import { cn } from '../../utils/cn';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'gradient' | 'danger' | 'danger-subtle' | 'settings-primary' | 'settings-secondary' | 'action-primary' | 'action-secondary' | 'home-action-ai' | 'home-action-report';
+  /**
+   * Core variants (recommended):
+   * - primary: 主操作按钮（青色渐变）
+   * - secondary: 次要操作（卡片风格）
+   * - outline: 描边按钮
+   * - ghost: 幽灵按钮（无背景）
+   * - gradient: 青色→紫色渐变
+   * - danger: 危险操作
+   *
+   * Legacy variants (mapped to core, will be deprecated):
+   * - danger-subtle → outline + danger color
+   * - settings-primary → primary
+   * - settings-secondary → secondary
+   * - action-primary → outline
+   * - action-secondary → ghost
+   * - home-action-ai → outline
+   * - home-action-report → ghost
+   */
+  variant?:
+    | 'primary'
+    | 'secondary'
+    | 'outline'
+    | 'ghost'
+    | 'gradient'
+    | 'danger'
+    | 'danger-subtle'
+    | 'settings-primary'
+    | 'settings-secondary'
+    | 'action-primary'
+    | 'action-secondary'
+    | 'home-action-ai'
+    | 'home-action-report';
   size?: 'xsm' | 'sm' | 'md' | 'lg' | 'xl';
   isLoading?: boolean;
-  /** Custom loading text. */
   loadingText?: string;
   glow?: boolean;
 }
 
-const BUTTON_SIZE_STYLES = {
+const SIZE_STYLES = {
   xsm: 'h-6 rounded-lg px-2 text-sm',
   sm: 'h-9 rounded-lg px-3 text-sm',
   md: 'h-10 rounded-xl px-4 text-sm',
@@ -18,28 +48,36 @@ const BUTTON_SIZE_STYLES = {
   xl: 'h-12 rounded-xl px-6 text-sm',
 } as const;
 
-const ACTION_AI_STYLES = 'bg-[var(--home-action-ai-bg)] border border-[var(--home-action-ai-border)] text-[var(--home-action-ai-text)] hover:bg-[var(--home-action-ai-hover-bg)]';
-const ACTION_REPORT_STYLES = 'bg-[var(--home-action-report-bg)] border border-[var(--home-action-report-border)] text-[var(--home-action-report-text)] hover:bg-[var(--home-action-report-hover-bg)]';
+// Core variant styles
+const VARIANT_STYLES: Record<string, string> = {
+  primary:
+    'border border-cyan/30 bg-gradient-to-r from-cyan-400 to-purple-500 text-white shadow-lg shadow-cyan/20 hover:scale-[1.02] hover:shadow-xl transition-all duration-300',
+  secondary:
+    'border border-neutral/30 bg-surface text-foreground shadow-soft-card hover:bg-muted/80 hover:border-neutral',
+  outline:
+    'border border-cyan/25 bg-transparent text-cyan-600 hover:bg-cyan/10',
+  ghost:
+    'border border-transparent bg-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+  gradient:
+    'border border-cyan/20 bg-gradient-to-r from-cyan-400/80 to-purple-500/80 text-white shadow-lg shadow-purple/20 hover:scale-[1.02] hover:shadow-xl transition-all duration-300',
+  danger:
+    'border border-danger/40 bg-danger text-destructive-foreground shadow-lg shadow-danger/20 hover:bg-danger/90',
+  'danger-subtle':
+    'border border-danger/60 bg-danger/10 text-danger hover:bg-danger/15',
+  'settings-primary':
+    'border border-cyan/30 bg-gradient-to-r from-cyan-400 to-purple-500 text-white shadow-lg shadow-cyan/20 hover:scale-[1.02]',
+  'settings-secondary':
+    'border border-neutral/30 bg-surface text-foreground shadow-soft-card hover:bg-muted/80',
+  'action-primary':
+    'border border-cyan/25 bg-[var(--home-action-ai-bg)] text-[var(--home-action-ai-text)] hover:bg-[var(--home-action-ai-hover-bg)]',
+  'action-secondary':
+    'border border-transparent bg-[var(--home-action-report-bg)] text-[var(--home-action-report-text)] hover:bg-[var(--home-action-report-hover-bg)]',
+  'home-action-ai':
+    'border border-cyan/25 bg-[var(--home-action-ai-bg)] text-[var(--home-action-ai-text)] hover:bg-[var(--home-action-ai-hover-bg)]',
+  'home-action-report':
+    'border border-transparent bg-[var(--home-action-report-bg)] text-[var(--home-action-report-text)] hover:bg-[var(--home-action-report-hover-bg)]',
+};
 
-const BUTTON_VARIANT_STYLES = {
-  primary: 'border border-cyan/30 bg-primary-gradient text-primary-foreground shadow-lg shadow-cyan/20 hover:brightness-105',
-  secondary: 'border border-border/70 bg-card text-foreground shadow-soft-card hover:bg-hover',
-  'settings-primary': 'border settings-button-primary hover:brightness-105 hover:shadow-xl',
-  'settings-secondary': 'border settings-button-secondary hover:translate-y-[-1px]',
-  outline: 'border border-cyan/25 bg-transparent text-cyan hover:bg-cyan/10',
-  ghost: 'border border-transparent bg-transparent text-secondary-text hover:bg-hover hover:text-foreground',
-  gradient: 'border border-cyan/20 bg-gradient-to-r from-cyan to-purple text-primary-foreground shadow-lg shadow-cyan/20 hover:brightness-105',
-  danger: 'border border-danger/40 bg-danger text-destructive-foreground shadow-lg shadow-danger/20 hover:brightness-105',
-  'danger-subtle': 'border border-danger/60 bg-danger/10 text-danger hover:bg-danger/15',
-  'action-primary': ACTION_AI_STYLES,
-  'action-secondary': ACTION_REPORT_STYLES,
-  'home-action-ai': ACTION_AI_STYLES,
-  'home-action-report': ACTION_REPORT_STYLES,
-} as const;
-
-/**
- * Button component with multiple variants and terminal-inspired styling.
- */
 export const Button: React.FC<ButtonProps> = ({
   children,
   variant = 'primary',
@@ -52,20 +90,19 @@ export const Button: React.FC<ButtonProps> = ({
   type = 'button',
   ...props
 }) => {
-  const glowStyles = glow ? 'shadow-glow-cyan settings-glow-cyan-hover' : '';
-
   return (
     <button
       type={type}
       aria-busy={isLoading || undefined}
       data-variant={variant}
-      className={cn(
-        'inline-flex cursor-pointer items-center justify-center gap-2 font-medium transition-all duration-200',
+className={cn(
+        'inline-flex cursor-pointer items-center justify-center gap-2 font-medium transition-all duration-300',
         'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan/15 focus-visible:ring-offset-0',
-        'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 disabled:transform-none',
-        BUTTON_SIZE_STYLES[size],
-        BUTTON_VARIANT_STYLES[variant],
-        glowStyles,
+        'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+        'active:scale-[0.98] hover:shadow-md',
+        SIZE_STYLES[size],
+        VARIANT_STYLES[variant] ?? VARIANT_STYLES.primary,
+        glow && 'shadow-glow-cyan',
         className,
       )}
       disabled={disabled || isLoading}

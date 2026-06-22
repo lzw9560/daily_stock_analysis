@@ -322,7 +322,7 @@ export default function PositionReviewPanel() {
         </div>
 
         <div className="space-y-3">
-          {displayed.map((data, _idx) => {
+          {displayed.map((data) => {
             const originalIdx = positions.indexOf(data);
             const p = data.position;
             const pnlPct = p.costPrice > 0 ? ((p.currentPrice - p.costPrice) / p.costPrice * 100) : 0;
@@ -404,7 +404,7 @@ export default function PositionReviewPanel() {
                 {data.expanded && (
                   <div className="ml-8 mt-2 space-y-4">
                     {/* 趋势分析 */}
-                    <Card className="border-l-4 border-l-blue-500 bg-blue-500/5 p-4">
+                    <Card className="ring-1 ring-blue-500 bg-blue-500/5 p-4">
                       <div className="flex items-center gap-2 mb-3">
                         <Activity className="w-4 h-4 text-blue-600" />
                         <span className="font-medium text-sm">走势分析与持仓诊断</span>
@@ -436,7 +436,7 @@ export default function PositionReviewPanel() {
 
                     {/* 操作建议 */}
                     {advice.length > 0 && (
-                      <Card className="border-l-4 border-l-green-500 bg-green-500/5 p-4">
+                       <Card className="ring-1 ring-green-500 bg-green-500/5 p-4">
                         <div className="flex items-center gap-2 mb-3">
                           <Target className="w-4 h-4 text-green-600" />
                           <span className="font-medium text-sm">持仓操作建议</span>
@@ -463,7 +463,7 @@ export default function PositionReviewPanel() {
                     )}
 
                     {/* 风险分析 */}
-                    <Card className="border-l-4 border-l-orange-500 bg-orange-500/5 p-4">
+                    <Card className="ring-1 ring-orange-500 bg-orange-500/5 p-4">
                       <div className="flex items-center gap-2 mb-3">
                         <Shield className="w-4 h-4 text-orange-600" />
                         <span className="font-medium text-sm">风险分析</span>

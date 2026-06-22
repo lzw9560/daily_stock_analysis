@@ -8,6 +8,7 @@ import { agentApi, type SkillInfo } from '../api/agent';
 import { systemConfigApi } from '../api/systemConfig';
 import { ApiErrorAlert, ConfirmDialog, Button, EmptyState, InlineAlert } from '../components/common';
 import { DashboardStateBlock } from '../components/dashboard';
+import LLMProviderStatusPanel from '../components/dashboard/LLMProviderStatusPanel';
 import { StockAutocomplete } from '../components/StockAutocomplete';
 import { HistoryList, StockHistoryTrendDrawer } from '../components/history';
 import { ReportMarkdownDrawer } from '../components/report/ReportMarkdownDrawer';
@@ -709,6 +710,10 @@ const HomePage: React.FC = () => {
             ) : null}
           </div>
         ) : null}
+
+        <div className="px-3 pb-2 md:px-4">
+          <LLMProviderStatusPanel />
+        </div>
 
         {setupNeedsAction ? (
           <div className="px-3 pb-2 md:px-4">

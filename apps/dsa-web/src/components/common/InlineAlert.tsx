@@ -12,10 +12,10 @@ interface InlineAlertProps {
 }
 
 const variantStyles: Record<InlineAlertVariant, string> = {
-  info: 'border-cyan/20 bg-cyan/10 text-cyan',
-  success: 'border-success/20 bg-success/10 text-success',
-  warning: 'border-warning/20 bg-warning/10 text-warning',
-  danger: 'border-[hsl(var(--color-danger-alert-border)/0.3)] bg-[hsl(var(--color-danger-alert-bg)/0.1)] text-[hsl(var(--color-danger-alert-text))]',
+  info: 'border-cyan/25 bg-cyan/10 text-cyan-600',
+  success: 'border-success/25 bg-success/10 text-success-600',
+  warning: 'border-warning/25 bg-warning/10 text-warning-600',
+  danger: 'border-danger/25 bg-danger/10 text-danger-600',
 };
 
 export const InlineAlert: React.FC<InlineAlertProps> = ({

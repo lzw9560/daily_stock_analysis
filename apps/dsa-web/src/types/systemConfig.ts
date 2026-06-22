@@ -270,3 +270,27 @@ export interface SystemConfigConflictResponse {
   message: string;
   currentConfigVersion: string;
 }
+
+// ── Model status schemas ──────────────────────────────────────
+
+export type ModelStatus = 'active' | 'available' | 'untested' | 'error';
+
+export interface ModelInfo {
+  value: string;
+  label: string;
+  provider: string;
+  status: ModelStatus;
+  latencyMs?: number | null;
+  tested: boolean;
+}
+
+export type CurrentModelStatus = 'active' | 'unknown' | 'error';
+
+export interface ModelStatusResponse {
+  currentModel: string;
+  currentModelStatus: CurrentModelStatus;
+  agentModel: string;
+  availableModels: ModelInfo[];
+  channelCount: number;
+  enabledChannelCount: number;
+}

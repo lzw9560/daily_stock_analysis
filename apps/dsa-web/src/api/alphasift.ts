@@ -1,6 +1,11 @@
 import apiClient from './index';
 import { systemConfigApi } from './systemConfig';
 import { toCamelCase } from './utils';
+import type {
+  FactorPipelineRecordResponse,
+  FactorPipelineTriggerRequest,
+  FactorPipelineTriggerResponse,
+} from '../types/screening';
 
 const ALPHASIFT_SCREEN_TIMEOUT_MS = 180000;
 const ALPHASIFT_INSTALL_TIMEOUT_MS = 300000;
@@ -23,6 +28,7 @@ export type AlphaSiftInstallResponse = {
 };
 
 export type AlphaSiftCandidate = {
+  id: number;
   rank: number;
   code: string;
   name: string;
@@ -90,6 +96,40 @@ export type AlphaSiftScreenResponse = {
   sourceErrors?: string[];
 };
 
+// History record types
+export type ScreeningRecordItem = {
+  id: number;
+  screeningDate: string;
+  strategy: string;
+  market: string;
+  candidateCount: number;
+  status: 'completed' | 'failed';
+  durationSeconds: number;
+  runId?: string;
+  createdAt: string;
+};
+
+export type ScreeningRecordsResponse = {
+  total: number;
+  limit: number;
+  offset: number;
+  records: ScreeningRecordItem[];
+};
+
+export type ScreeningRecordDetail = ScreeningRecordItem & {
+  errorMessage?: string;
+  snapshotCount?: number;
+  afterFilterCount?: number;
+  llmRanked?: boolean;
+  llmMarketView?: string;
+  llmSelectionLogic?: string;
+  llmPortfolioRisk?: string;
+  llmCoverage?: number | null;
+  warnings?: string[];
+  sourceErrors?: string[];
+  candidates: AlphaSiftCandidate[];
+};
+
 export function notifyAlphaSiftConfigChanged(): void {
   window.dispatchEvent(new Event(ALPHASIFT_CONFIG_CHANGED_EVENT));
   notifySystemConfigChanged();
@@ -150,5 +190,36 @@ export const alphasiftApi = {
       }
       throw error;
     }
+  },
+
+  async getRecords(params?: {
+    screeningDate?: string;
+    strategy?: string;
+    market?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ScreeningRecordsResponse> {
+    const response = await apiClient.get<ScreeningRecordsResponse>('/api/v1/screening/records', { params });
+    return toCamelCase<ScreeningRecordsResponse>(response.data);
+  },
+
+  async getRecordDetail(recordId: number): Promise<ScreeningRecordDetail> {
+    const response = await apiClient.get<ScreeningRecordDetail>(`/api/v1/screening/records/${recordId}`);
+    return toCamelCase<ScreeningRecordDetail>(response.data);
+  },
+
+  async getFactorPipeline(recordId: number): Promise<FactorPipelineRecordResponse> {
+    const response = await apiClient.get<FactorPipelineRecordResponse>(
+      `/api/v1/screening/records/${recordId}/factor-pipeline`,
+    );
+    return toCamelCase<FactorPipelineRecordResponse>(response.data);
+  },
+
+  async triggerFactorPipeline(params: FactorPipelineTriggerRequest): Promise<FactorPipelineTriggerResponse> {
+    const response = await apiClient.post<FactorPipelineTriggerResponse>(
+      '/api/v1/screening/factor-pipeline/run',
+      { record_id: params.recordId, market: params.market, screening_date: params.screeningDate },
+    );
+    return toCamelCase<FactorPipelineTriggerResponse>(response.data);
   },
 };

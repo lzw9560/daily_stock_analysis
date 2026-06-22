@@ -5,6 +5,7 @@ import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Loading } from '@/components/common/Loading';
 import { sealPlateApi } from '@/api/sealPlate';
+import { StockNameDisplay } from '@/components/common/StockNameDisplay';
 import type { StockPool, StockPoolItem } from '@/types/sealPlate';
 
 interface Props {
@@ -32,8 +33,7 @@ function PoolCard({ item, poolType, onClick }: { item: StockPoolItem; poolType: 
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <Icon className={`w-4 h-4 ${config.color}`} />
-          <span className="font-medium">{item.name}</span>
-          <span className="text-xs text-muted-foreground">{item.code}</span>
+          <StockNameDisplay name={item.name} code={item.code} />
         </div>
         <Badge
           variant={item.score >= 80 ? 'success' : item.score >= 60 ? 'warning' : 'default'}

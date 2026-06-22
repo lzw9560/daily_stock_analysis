@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../utils/constants';
 import { attachParsedApiError } from './error';
+import { financialDataApi } from './financialData';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -26,4 +27,5 @@ apiClient.interceptors.response.use(
   }
 );
 
+export { financialDataApi };
 export default apiClient;

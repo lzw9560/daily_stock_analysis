@@ -295,6 +295,9 @@ export interface TaskStatus {
   skills?: string[];
 }
 
+import type { FactorPipelineSummary } from './screening';
+import type { AgentRuntime } from '../api/agent';
+
 /** Task details used by task list and SSE events */
 export interface TaskInfo {
   taskId: string;
@@ -311,6 +314,8 @@ export interface TaskInfo {
   error?: string;
   originalQuery?: string;
   selectionSource?: string;
+  factorPipeline?: FactorPipelineSummary;
+  runtime?: AgentRuntime;
 }
 
 /** Task list response */
@@ -426,3 +431,204 @@ export const getSentimentColor = (score: number): string => {
   if (score <= 80) return '#22c55e'; // green-500
   return '#10b981'; // emerald-500
 };
+
+// ==============================================================
+// Financial Data Types - Federal Reserve & Yahoo Finance
+// ==============================================================
+
+export interface FederalReserveRatePoint {
+  date: string;
+  value: number;
+  maturity: string;
+  unit: string;
+}
+
+export interface FederalReserveRateResponse {
+  series: FederalReserveRatePoint[];
+  metadata: {
+    source: 'FRED' | 'FederalReserve';
+    lastUpdated: string;
+    maturityTypes: string[];
+    currency: string;
+  };
+}
+
+export interface YahooFinanceQuote {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  adjustedClose?: number;
+}
+
+export interface YahooFinanceMetadata {
+  symbol: string;
+  currency: string;
+  exchangeName: string;
+  instrumentType: string;
+  firstTradeDate: number;
+  regularMarketTime: number;
+  hasPrePostMarketData: boolean;
+  gmtoffset: number;
+  timezone: string;
+  exchangeTimezoneName: string;
+  regularMarketPrice: number;
+  fiftyTwoWeekHigh: number;
+  fiftyTwoWeekLow: number;
+  regularMarketDayHigh: number;
+  regularMarketDayLow: number;
+  regularMarketVolume: number;
+  marketCap?: number;
+  beta?: number;
+  trailingPE?: number;
+  forwardPE?: number;
+  dividendRate?: number;
+  dividendYield?: number;
+}
+
+export interface YahooFinanceDataResponse {
+  chart: {
+    result: Array<{
+      meta: YahooFinanceMetadata;
+      timestamp: number[];
+      indicators: {
+        quote: Array<{
+          open: number[];
+          high: number[];
+          low: number[];
+          close: number[];
+          volume: number[];
+        }>;
+        adjclose?: Array<{
+          adjclose: number[];
+        }>;
+      };
+    }>;
+    error: unknown | null;
+  };
+}
+
+export interface EconomicCalendarEvent {
+  date: string;
+  time?: string;
+  country: string;
+  currency: string;
+  event: string;
+  actual?: string;
+  forecast?: string;
+  previous?: string;
+  importance: 'low' | 'medium' | 'high';
+  unit?: string;
+}
+
+export interface MarketDataPoint {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  marketCap?: number;
+  high?: number;
+  low?: number;
+  open?: number;
+  previousClose?: number;
+  timestamp: string;
+}
+
+export interface MarketDataResponse {
+  market: string;
+  timestamp: string;
+  data: MarketDataPoint[];
+  summary: {
+    totalVolume: number;
+    averageChange: number;
+    gainers: number;
+    losers: number;
+    unchanged: number;
+  };
+}
+
+export interface FinancialStatement {
+  symbol: string;
+  period: 'annual' | 'quarterly';
+  statementType: 'income' | 'balance' | 'cashflow';
+  currency: string;
+  data: Record<string, Record<string, number | string | null>>;
+  metadata: {
+    source: string;
+    lastUpdated: string;
+    fiscalYearEnd: string;
+  };
+}
+
+export interface StockDividendInfo {
+  symbol: string;
+  dividends: Array<{
+    date: string;
+    amount: number;
+    type: 'regular' | 'special' | 'stock';
+    currency: string;
+  }>;
+  metadata: {
+    source: string;
+    lastUpdated: string;
+  };
+}
+
+export interface StockSplitInfo {
+  symbol: string;
+  splits: Array<{
+    date: string;
+    ratio: string;
+    numerator: number;
+    denominator: number;
+  }>;
+  metadata: {
+    source: string;
+    lastUpdated: string;
+  };
+}
+
+export interface DividendSchedule {
+  symbol: string;
+  companyName: string;
+  exDate: string;
+  payDate: string;
+  amount: number;
+  currency: string;
+  yield?: number;
+  type: 'regular' | 'special';
+}
+
+export interface EarningsCalendar {
+  symbol: string;
+  companyName: string;
+  date: string;
+  time?: string;
+  epsEstimate?: number;
+  epsActual?: number;
+  revenueEstimate?: number;
+  revenueActual?: number;
+  surprise?: number;
+  surprisePercent?: number;
+}
+
+export interface EconomicIndicator {
+  name: string;
+  date: string;
+  value: number;
+  unit: string;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
+  category: 'inflation' | 'employment' | 'gdp' | 'consumer' | 'housing' | 'manufacturing' | 'trade' | 'monetary';
+}
+
+export interface EconomicIndicators {
+  indicators: EconomicIndicator[];
+  metadata: {
+    source: 'FRED' | 'BLS' | 'BEA' | 'FederalReserve';
+    lastUpdated: string;
+    dateRange: { start: string; end: string };
+  };
+}
