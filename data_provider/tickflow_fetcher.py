@@ -16,6 +16,7 @@ pipelines and should only be called explicitly by DataFetcherManager.
 
 import logging
 import math
+import time
 from threading import RLock
 from time import monotonic
 from typing import Any, Dict, List, Optional
@@ -52,9 +53,17 @@ class TickFlowFetcher(BaseFetcher):
     name = "TickFlowFetcher"
     priority = 99
 
-    def __init__(self, api_key: Optional[str], timeout: float = 30.0):
+    def __init__(
+        self,
+        api_key: Optional[str],
+        timeout: float = 30.0,
+        max_retries: int = 3,
+        retry_base_delay: float = 1.0,
+    ):
         self.api_key = (api_key or "").strip()
         self.timeout = timeout
+        self.max_retries = max_retries
+        self.retry_base_delay = retry_base_delay
         self._client = None
         self._client_lock = RLock()
         self._universe_query_supported: Optional[bool] = None
@@ -176,6 +185,32 @@ class TickFlowFetcher(BaseFetcher):
             return 0.05
         return 0.10
 
+    def _call_with_retry(self, func, *args, **kwargs):
+        """Execute a function with exponential backoff retry."""
+        last_error = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                last_error = e
+                if attempt < self.max_retries:
+                    delay = self.retry_base_delay * (2 ** attempt)
+                    logger.warning(
+                        "[TickFlowFetcher] 调用失败 (尝试 %s/%s): %s, 等待 %ss 重试",
+                        attempt + 1,
+                        self.max_retries + 1,
+                        e,
+                        delay,
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.error(
+                        "[TickFlowFetcher] 调用最终失败，已重试 %s 次: %s",
+                        self.max_retries,
+                        last_error,
+                    )
+        raise last_error
+
     def get_main_indices(self, region: str = "cn") -> Optional[List[Dict[str, Any]]]:
         """Fetch main A-share indices via TickFlow quotes."""
         if region != "cn":
@@ -186,10 +221,14 @@ class TickFlowFetcher(BaseFetcher):
             return None
 
         symbols = [symbol for symbol, _, _ in _CN_MAIN_INDEX_QUOTES]
+
+        def _fetch_batch(batch_symbols):
+            return client.quotes.get(symbols=batch_symbols)
+
         quotes: List[Dict[str, Any]] = []
         for offset in range(0, len(symbols), _MAX_SYMBOLS_PER_QUOTE_REQUEST):
             batch_symbols = symbols[offset : offset + _MAX_SYMBOLS_PER_QUOTE_REQUEST]
-            batch_quotes = client.quotes.get(symbols=batch_symbols)
+            batch_quotes = self._call_with_retry(_fetch_batch, batch_symbols)
             if batch_quotes:
                 quotes.extend(batch_quotes)
         if not quotes:
@@ -262,8 +301,11 @@ class TickFlowFetcher(BaseFetcher):
             self._universe_query_supported = None
             self._universe_query_checked_at = None
 
+        def _fetch_universe():
+            return client.quotes.get(universes=["CN_Equity_A"])
+
         try:
-            quotes = client.quotes.get(universes=["CN_Equity_A"])
+            quotes = self._call_with_retry(_fetch_universe)
             self._universe_query_supported = True
             self._universe_query_checked_at = now
         except Exception as exc:

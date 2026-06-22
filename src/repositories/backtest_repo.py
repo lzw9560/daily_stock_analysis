@@ -13,7 +13,7 @@ from typing import List, Optional, Tuple
 
 from sqlalchemy import and_, delete, desc, func, or_, select
 
-from src.storage import BacktestResult, BacktestSummary, DatabaseManager, AnalysisHistory
+from src.storage import BacktestOptimizationLog, BacktestResult, BacktestSummary, DatabaseManager, AnalysisHistory
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +127,6 @@ class BacktestRepository:
             total = session.execute(
                 select(func.count(BacktestResult.id))
                 .select_from(BacktestResult)
-                .join(AnalysisHistory, AnalysisHistory.id == BacktestResult.analysis_history_id)
                 .where(where_clause)
             ).scalar() or 0
             rows = session.execute(
@@ -137,7 +136,7 @@ class BacktestRepository:
                     AnalysisHistory.trend_prediction,
                     AnalysisHistory.created_at,
                 )
-                .join(AnalysisHistory, AnalysisHistory.id == BacktestResult.analysis_history_id)
+                .outerjoin(AnalysisHistory, AnalysisHistory.id == BacktestResult.analysis_history_id)
                 .where(where_clause)
                 .order_by(desc(BacktestResult.analysis_date), desc(BacktestResult.evaluated_at))
                 .offset(offset)
@@ -249,6 +248,56 @@ class BacktestRepository:
 
             session.add(summary)
             session.commit()
+
+    def save_optimization_log(
+        self,
+        *,
+        code: Optional[str],
+        eval_window_days: int,
+        engine_version: str,
+        combinations: int,
+        score_key: str,
+        best_score: Optional[float],
+        best_params_json: Optional[str],
+        best_result_json: Optional[str],
+        results_json: Optional[str],
+    ) -> int:
+        with self.db.get_session() as session:
+            log = BacktestOptimizationLog(
+                code=code,
+                eval_window_days=eval_window_days,
+                engine_version=engine_version,
+                combinations=combinations,
+                score_key=score_key,
+                best_score=best_score,
+                best_params_json=best_params_json,
+                best_result_json=best_result_json,
+                results_json=results_json,
+            )
+            session.add(log)
+            session.commit()
+            return int(log.id or 0)
+
+    def list_optimization_logs(
+        self,
+        *,
+        code: Optional[str] = None,
+        engine_version: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[BacktestOptimizationLog]:
+        with self.db.get_session() as session:
+            conditions = []
+            if code is not None:
+                conditions.append(BacktestOptimizationLog.code == code)
+            if engine_version is not None:
+                conditions.append(BacktestOptimizationLog.engine_version == engine_version)
+            query = select(BacktestOptimizationLog)
+            if conditions:
+                query = query.where(and_(*conditions))
+            rows = session.execute(
+                query.order_by(desc(BacktestOptimizationLog.created_at)).limit(limit)
+            ).scalars().all()
+            return list(rows)
 
     def get_summary(
         self,

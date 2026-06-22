@@ -20,8 +20,14 @@ from api.v1.endpoints import (
     usage,
     portfolio,
     seal_plate,
+    position_monitor,
     alerts,
     alphasift,
+    comprehensive_recommend,
+    recommendation_tracking,
+    screening,
+    deep_analysis,
+    strategy_optimizer,
 )
 __all__ = [
     "health",
@@ -35,6 +41,12 @@ __all__ = [
     "usage",
     "portfolio",
     "seal_plate",
+    "position_monitor",
     "alerts",
     "alphasift",
+    "comprehensive_recommend",
+    "recommendation_tracking",
+    "screening",
+    "deep_analysis",
+    "strategy_optimizer",
 ]

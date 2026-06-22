@@ -27,6 +27,7 @@ import numpy as np
 from src.data.stock_index_loader import get_index_stock_name
 from src.data.stock_mapping import STOCK_NAME_MAP, is_meaningful_stock_name
 from src.services.run_diagnostics import record_provider_run
+from .code_utils import normalize_stock_code, canonical_stock_code, ETF_PREFIXES
 from .fundamental_adapter import AkshareFundamentalAdapter
 from .yfinance_fundamental_adapter import YfinanceFundamentalAdapter
 
@@ -65,77 +66,7 @@ def summarize_exception(exc: Exception) -> Tuple[str, str]:
     return error_type, " ".join(message.split())
 
 
-def normalize_stock_code(stock_code: str) -> str:
-    """
-    Normalize stock code by stripping exchange prefixes/suffixes.
-
-    Accepted formats and their normalized results:
-    - '600519'      -> '600519'   (already clean)
-    - 'SH600519'    -> '600519'   (strip SH prefix)
-    - 'SH.600519'   -> '600519'   (strip SH. prefix)
-    - 'SZ000001'    -> '000001'   (strip SZ prefix)
-    - 'SZ.000001'   -> '000001'   (strip SZ. prefix)
-    - 'BJ920748'    -> '920748'   (strip BJ prefix, BSE)
-    - 'BJ.920748'   -> '920748'   (strip BJ. prefix, BSE)
-    - 'sh600519'    -> '600519'   (case-insensitive)
-    - '600519.SH'   -> '600519'   (strip .SH suffix)
-    - '000001.SZ'   -> '000001'   (strip .SZ suffix)
-    - '920748.BJ'   -> '920748'   (strip .BJ suffix, BSE)
-    - 'HK00700'     -> 'HK00700'  (keep HK prefix for HK stocks)
-    - '1810.HK'     -> 'HK01810'  (normalize HK suffix to canonical prefix form)
-    - 'AAPL'        -> 'AAPL'     (keep US stock ticker as-is)
-
-    This function is applied at the DataProviderManager layer so that
-    all individual fetchers receive a clean 6-digit code (for A-shares/ETFs).
-    """
-    code = stock_code.strip()
-    upper = code.upper()
-
-    # Normalize HK prefix to a canonical 5-digit form (e.g. hk1810 -> HK01810)
-    if upper.startswith('HK') and not upper.startswith('HK.'):
-        candidate = upper[2:]
-        if candidate.isdigit() and 1 <= len(candidate) <= 5:
-            return f"HK{candidate.zfill(5)}"
-
-    # Strip SH/SZ prefix (e.g. SH600519 -> 600519)
-    if upper.startswith(('SH', 'SZ')) and not upper.startswith('SH.') and not upper.startswith('SZ.'):
-        candidate = code[2:]
-        # Only strip if the remainder looks like a valid numeric code
-        if candidate.isdigit() and len(candidate) in (5, 6):
-            return candidate
-
-    # Strip dotted SH/SZ prefix (e.g. SH.600519 -> 600519)
-    if upper.startswith(('SH.', 'SZ.')):
-        candidate = code[3:]
-        if candidate.isdigit() and len(candidate) in (5, 6):
-            return candidate
-
-    # Strip BJ prefix (e.g. BJ920748 -> 920748)
-    if upper.startswith('BJ') and not upper.startswith('BJ.'):
-        candidate = code[2:]
-        if candidate.isdigit() and len(candidate) == 6:
-            return candidate
-
-    # Strip dotted BJ prefix (e.g. BJ.920748 -> 920748)
-    if upper.startswith('BJ.'):
-        candidate = code[3:]
-        if candidate.isdigit() and len(candidate) == 6:
-            return candidate
-
-    # Strip .SH/.SZ/.BJ suffix (e.g. 600519.SH -> 600519, 920748.BJ -> 920748)
-    if '.' in code:
-        base, suffix = code.rsplit('.', 1)
-        if suffix.upper() == 'HK' and base.isdigit() and 1 <= len(base) <= 5:
-            return f"HK{base.zfill(5)}"
-        if base.upper() in ('SH', 'SS', 'SZ', 'BJ') and suffix.isdigit():
-            return suffix
-        if suffix.upper() in ('SH', 'SZ', 'SS', 'BJ') and base.isdigit():
-            return base
-
-    return code
-
-
-ETF_PREFIXES = ("51", "52", "56", "58", "15", "16", "18")
+# normalize_stock_code is imported from .code_utils at module top.
 
 
 def _is_us_market(code: str) -> bool:
@@ -253,21 +184,7 @@ def is_kc_cy_stock(code: str) -> bool:
     return c.startswith("688") or c.startswith("30")
 
 
-def canonical_stock_code(code: str) -> str:
-    """
-    Return the canonical (uppercase) form of a stock code.
-
-    This is a display/storage layer concern, distinct from normalize_stock_code
-    which strips exchange prefixes. Apply at system input boundaries to ensure
-    consistent case across BOT, WEB UI, API, and CLI paths (Issue #355).
-
-    Examples:
-        'aapl'    -> 'AAPL'
-        'AAPL'    -> 'AAPL'
-        '600519'  -> '600519'  (digits are unchanged)
-        'hk00700' -> 'HK00700'
-    """
-    return (code or "").strip().upper()
+# canonical_stock_code is imported from .code_utils at module top.
 
 
 class DataFetchError(Exception):
@@ -789,7 +706,12 @@ class DataFetcherManager:
             try:
                 from .tickflow_fetcher import TickFlowFetcher
 
-                fetcher = TickFlowFetcher(api_key=api_key)
+                fetcher = TickFlowFetcher(
+                    api_key=api_key,
+                    timeout=getattr(config, "tickflow_timeout_seconds", 30.0),
+                    max_retries=getattr(config, "tickflow_max_retries", 3),
+                    retry_base_delay=getattr(config, "tickflow_retry_base_delay", 1.0),
+                )
                 self._tickflow_fetcher = fetcher
                 self._tickflow_api_key = api_key
                 return fetcher

@@ -313,6 +313,7 @@ class TaskInfo(BaseModel):
         pattern=SELECTION_SOURCE_PATTERN,
     )
     skills: Optional[List[str]] = Field(None, description="本次任务使用的策略 skill ID 列表")
+    factor_pipeline: Optional[dict[str, Any]] = Field(None, description="因子流水线概览")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {

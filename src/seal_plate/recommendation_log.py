@@ -100,11 +100,18 @@ class RecommendationLogStore:
         return os.path.join(self.base_dir, f"recommend_{date}.json")
 
     def save(self, log: RecommendationLog) -> None:
-        """保存当日推荐日志"""
+        """保存当日推荐日志（原子写入，防止截断）"""
         path = self._path(log.date)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(log.to_dict(), f, ensure_ascii=False, indent=2)
-        logger.info("推荐日志已保存: %s", path)
+        tmp_path = path + ".tmp"
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(log.to_dict(), f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, path)  # 原子替换
+            logger.info("推荐日志已保存: %s", path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise
 
     def load(self, date: str) -> Optional[RecommendationLog]:
         """加载指定日期的推荐日志"""

@@ -625,6 +625,9 @@ class Config:
     # === 数据源 API Token ===
     tushare_token: Optional[str] = None
     tickflow_api_key: Optional[str] = None
+    tickflow_timeout_seconds: float = 30.0
+    tickflow_max_retries: int = 3
+    tickflow_retry_base_delay: float = 1.0
     finnhub_api_key: Optional[str] = None
     alphavantage_api_key: Optional[str] = None
     longbridge_app_key: Optional[str] = None
@@ -634,8 +637,28 @@ class Config:
     stock_index_remote_update_enabled: bool = True
 
     # === AlphaSift optional stock screening integration ===
-    alphasift_enabled: bool = False
+    alphasift_enabled: bool = True
     alphasift_install_spec: str = DEFAULT_ALPHASIFT_INSTALL_SPEC
+
+    # === 选股记录与自动调度配置 ===
+    screening_schedule_enabled: bool = True         # 是否启用每日自动选股
+    screening_schedule_time: str = "08:50"           # 每日自动选股时间（HH:MM）
+    screening_strategies: str = "dual_low,quality_value,volume_breakout,balanced_alpha,capital_heat"
+    screening_market: str = "cn"                     # 选股市场
+    screening_max_results: int = 20                  # 每个策略最大候选数
+    screening_auto_backtest: bool = True             # 选股后是否自动触发一级回测
+    screening_backtest_eval_window_days: int = 10    # 自动回测评估窗口
+    screening_backtest_min_age_days: int = 1         # 自动回测最小天数（选股结果无历史分析记录时设为1天以快速回测）
+
+    # === Phase 2 因子流水线配置 ===
+    factor_pipeline_enabled: bool = False
+    factor_pipeline_train_days: int = 730
+    factor_pipeline_valid_days: int = 90
+    factor_pipeline_test_days: int = 90
+    factor_pipeline_shap_sample_size: int = 128
+    factor_pipeline_instruments: str = "csi300"
+    factor_qlib_provider_uri: Optional[str] = None
+    factor_qlib_region: str = "cn"
 
     # === AI 分析配置 ===
     # LiteLLM unified model config (provider/model format, e.g. gemini/gemini-3.1-pro-preview)
@@ -644,6 +667,13 @@ class Config:
 
     # Unified temperature for all LLM calls (LLM_TEMPERATURE); legacy per-provider temps are fallback only
     llm_temperature: float = 0.7
+
+    litellm_fallback_models: List[str] = field(default_factory=list)  # Cross-model fallback list
+
+    # LLM 请求超时配置（秒）
+    litellm_timeout_seconds: float = 60.0  # 单次 LLM 请求超时
+    litellm_max_retries: int = 3  # 请求失败最大重试次数
+    litellm_retry_base_delay: float = 2.0  # 重试基础延迟（秒，指数退避）
 
     # --- Multi-channel LLM config (new) ---
     # LITELLM_CONFIG: path to a standard litellm_config.yaml file (most powerful)
@@ -685,6 +715,10 @@ class Config:
     openai_vision_model: Optional[str] = None  # Deprecated: use VISION_MODEL instead
     openai_temperature: float = 0.7  # OpenAI 温度参数（0.0-2.0，默认0.7）
 
+    # Agnes AI API（OpenAI 兼容格式，作为 openai_api_key 的 fallback 源）
+    agnes_api_key: Optional[str] = None
+    agnes_api_base: Optional[str] = None  # 如: https://api.agnes-ai.com/v1
+
     # === Vision 配置 ===
     # VISION_MODEL: litellm model string used for image understanding calls.
     # Fallback chain: VISION_MODEL → OPENAI_VISION_MODEL → gemini/gemini-2.0-flash
@@ -697,10 +731,13 @@ class Config:
     bocha_api_keys: List[str] = field(default_factory=list)  # Bocha API Keys
     minimax_api_keys: List[str] = field(default_factory=list)  # MiniMax API Keys
     tavily_api_keys: List[str] = field(default_factory=list)  # Tavily API Keys
+    tavily_timeout_seconds: float = 15.0  # Tavily 搜索请求超时（秒）
     brave_api_keys: List[str] = field(default_factory=list)  # Brave Search API Keys
     serpapi_keys: List[str] = field(default_factory=list)  # SerpAPI Keys
+    serpapi_timeout_seconds: float = 15.0  # SerpAPI 搜索请求超时（秒）
     searxng_base_urls: List[str] = field(default_factory=list)  # SearXNG instance URLs (self-hosted, no quota)
     searxng_public_instances_enabled: bool = True  # Auto-discover public SearXNG instances when base URLs are absent
+    searxng_timeout_seconds: float = 15.0  # SearXNG 搜索请求超时（秒）
 
     # === Social Sentiment (US stocks only, api.adanos.org) ===
     social_sentiment_api_key: Optional[str] = None
@@ -720,7 +757,7 @@ class Config:
     agent_skill_dir: Optional[str] = None
     agent_nl_routing: bool = False  # Enable natural language routing in bot dispatcher
     agent_arch: str = "single"     # Agent architecture: 'single' (legacy) or 'multi' (orchestrator)
-    agent_orchestrator_mode: str = "standard"  # Orchestrator mode: quick/standard/full/specialist
+    agent_orchestrator_mode: str = "standard"  # Orchestrator mode: quick/standard/full/specialist/debate
     agent_orchestrator_timeout_s: int = 600  # Cooperative timeout budget for the whole multi-agent pipeline
     agent_risk_override: bool = True  # Allow risk agent to veto buy signals
     agent_deep_research_budget: int = 30000  # Max token budget for deep research
@@ -841,6 +878,9 @@ class Config:
 
     # 消息长度限制（字节）- 超长自动分批发送
     feishu_max_bytes: int = 20000  # 飞书限制约 20KB，默认 20000 字节
+    feishu_timeout_seconds: float = 30.0  # 飞书 Webhook 请求超时（秒）
+    feishu_retry_max: int = 3  # 飞书发送重试次数
+    feishu_retry_base_delay: float = 1.0  # 飞书重试基础延迟（秒，指数退避）
     wechat_max_bytes: int = 4000   # 企业微信限制 4096 字节，默认 4000 字节
     discord_max_words: int = 2000  # Discord 限制 2000 字，默认 2000 字
     wechat_msg_type: str = "markdown"  # 企业微信消息类型，默认 markdown 类型
@@ -869,6 +909,7 @@ class Config:
     backtest_min_age_days: int = 14
     backtest_engine_version: str = "v1"
     backtest_neutral_band_pct: float = 2.0
+    execution_enabled: bool = False
     
     # === 日志配置 ===
     log_dir: str = "./logs"  # 日志文件目录
@@ -994,7 +1035,7 @@ class Config:
 
     # --- Post-init validation ---------------------------------------------------
     _VALID_AGENT_ARCH = {"single", "multi"}
-    _VALID_ORCHESTRATOR_MODES = {"quick", "standard", "full", "specialist"}
+    _VALID_ORCHESTRATOR_MODES = {"quick", "standard", "full", "specialist", "debate"}
     _VALID_SKILL_ROUTING = {"auto", "manual"}
     _WEBUI_RUNTIME_ENV_FILE_PRIORITY_KEYS = frozenset(
         {
@@ -1147,16 +1188,17 @@ class Config:
         if not anthropic_api_keys and _single_anthropic:
             anthropic_api_keys = [_single_anthropic]
 
-        # OPENAI_API_KEYS > AIHUBMIX_KEY > OPENAI_API_KEY
+        # OPENAI_API_KEYS > AIHUBMIX_KEY > OPENAI_API_KEY > AGNES_API_KEY
         _aihubmix = os.getenv('AIHUBMIX_KEY', '').strip()
         _openai_keys_raw = os.getenv('OPENAI_API_KEYS', '')
         openai_api_keys = [k.strip() for k in _openai_keys_raw.split(',') if k.strip()]
         if not openai_api_keys:
             _single_openai = os.getenv('OPENAI_API_KEY', '').strip()
-            _fallback_key = _aihubmix or _single_openai
+            _agnes_key = os.getenv('AGNES_API_KEY', '').strip()
+            _fallback_key = _aihubmix or _single_openai or _agnes_key
             if _fallback_key:
                 openai_api_keys = [_fallback_key]
-        openai_base_url = os.getenv('OPENAI_BASE_URL') or (
+        openai_base_url = os.getenv('OPENAI_BASE_URL') or os.getenv('AGNES_API_BASE') or (
             'https://aihubmix.com/v1' if _aihubmix else None
         )
 
@@ -1215,7 +1257,7 @@ class Config:
             elif anthropic_api_keys:
                 litellm_model = f'anthropic/{_anthropic_model_name}'
             elif deepseek_api_keys:
-                litellm_model = 'deepseek/deepseek-chat'
+                litellm_model = 'deepseek/deepseek-v4-flash'
                 inferred_legacy_deepseek_model = True
             elif openai_api_keys:
                 # For openai-compatible models, add prefix only if not already prefixed
@@ -1236,6 +1278,17 @@ class Config:
                 litellm_fallback_models = [_fb]
             else:
                 litellm_fallback_models = []
+
+        # LLM 请求超时配置
+        litellm_timeout_seconds = parse_env_float(
+            os.getenv('LITELLM_TIMEOUT_SECONDS'), 60.0, field_name='LITELLM_TIMEOUT_SECONDS', minimum=1.0
+        )
+        litellm_max_retries = parse_env_int(
+            os.getenv('LITELLM_MAX_RETRIES'), 3, field_name='LITELLM_MAX_RETRIES', minimum=0
+        )
+        litellm_retry_base_delay = parse_env_float(
+            os.getenv('LITELLM_RETRY_BASE_DELAY'), 2.0, field_name='LITELLM_RETRY_BASE_DELAY', minimum=0.0
+        )
 
         # === LLM Channels + YAML config ===
         litellm_config_path = os.getenv('LITELLM_CONFIG', '').strip() or None
@@ -1271,12 +1324,10 @@ class Config:
         if (
             inferred_legacy_deepseek_model
             and llm_models_source == "legacy_env"
-            and litellm_model == 'deepseek/deepseek-chat'
+            and litellm_model == 'deepseek/deepseek-v4-flash'
         ):
-            logger.warning(
-                "Deprecation warning:\n"
-                "deepseek-chat will be deprecated on 2026-07-24,\n"
-                "please migrate to deepseek-v4-flash."
+            logger.info(
+                "Using deepseek-v4-flash (replaces deprecated deepseek-chat)"
             )
 
         # Auto-infer LITELLM_MODEL from channels when not explicitly set
@@ -1331,12 +1382,22 @@ class Config:
         
         tavily_keys_str = os.getenv('TAVILY_API_KEYS', '')
         tavily_api_keys = [k.strip() for k in tavily_keys_str.split(',') if k.strip()]
+        tavily_timeout_seconds = parse_env_float(
+            os.getenv('TAVILY_TIMEOUT_SECONDS'), 15.0, field_name='TAVILY_TIMEOUT_SECONDS', minimum=1.0
+        )
         
         serpapi_keys_str = os.getenv('SERPAPI_API_KEYS', '')
         serpapi_keys = [k.strip() for k in serpapi_keys_str.split(',') if k.strip()]
+        serpapi_timeout_seconds = parse_env_float(
+            os.getenv('SERPAPI_TIMEOUT_SECONDS'), 15.0, field_name='SERPAPI_TIMEOUT_SECONDS', minimum=1.0
+        )
 
         brave_keys_str = os.getenv('BRAVE_API_KEYS', '')
         brave_api_keys = [k.strip() for k in brave_keys_str.split(',') if k.strip()]
+
+        searxng_timeout_seconds = parse_env_float(
+            os.getenv('SEARXNG_TIMEOUT_SECONDS'), 15.0, field_name='SEARXNG_TIMEOUT_SECONDS', minimum=1.0
+        )
 
         _raw_urls = [u.strip() for u in os.getenv('SEARXNG_BASE_URLS', '').split(',') if u.strip()]
         searxng_base_urls = []
@@ -1438,6 +1499,9 @@ class Config:
             ),
             litellm_model=litellm_model,
             litellm_fallback_models=litellm_fallback_models,
+            litellm_timeout_seconds=litellm_timeout_seconds,
+            litellm_max_retries=litellm_max_retries,
+            litellm_retry_base_delay=litellm_retry_base_delay,
             llm_temperature=resolve_unified_llm_temperature(litellm_model),
             litellm_config_path=litellm_config_path,
             llm_models_source=llm_models_source,
@@ -1469,6 +1533,8 @@ class Config:
             openai_model=_openai_model_name,
             openai_vision_model=os.getenv('OPENAI_VISION_MODEL') or None,
             openai_temperature=parse_env_float(os.getenv('OPENAI_TEMPERATURE'), 0.7, field_name='OPENAI_TEMPERATURE'),
+            agnes_api_key=os.getenv('AGNES_API_KEY') or None,
+            agnes_api_base=os.getenv('AGNES_API_BASE') or None,
             # Vision model: VISION_MODEL > OPENAI_VISION_MODEL (alias) > default
             vision_model=(
                 os.getenv('VISION_MODEL')
@@ -1480,10 +1546,13 @@ class Config:
             bocha_api_keys=bocha_api_keys,
             minimax_api_keys=minimax_api_keys,
             tavily_api_keys=tavily_api_keys,
+            tavily_timeout_seconds=tavily_timeout_seconds,
             brave_api_keys=brave_api_keys,
             serpapi_keys=serpapi_keys,
+            serpapi_timeout_seconds=serpapi_timeout_seconds,
             searxng_base_urls=searxng_base_urls,
             searxng_public_instances_enabled=searxng_public_instances_enabled,
+            searxng_timeout_seconds=searxng_timeout_seconds,
             social_sentiment_api_key=os.getenv('SOCIAL_SENTIMENT_API_KEY') or None,
             social_sentiment_api_url=os.getenv('SOCIAL_SENTIMENT_API_URL', 'https://api.adanos.org').rstrip('/'),
             news_max_age_days=parse_env_int(os.getenv('NEWS_MAX_AGE_DAYS'), 3, field_name='NEWS_MAX_AGE_DAYS', minimum=1),
@@ -1626,6 +1695,9 @@ class Config:
             analysis_delay=parse_env_float(os.getenv('ANALYSIS_DELAY'), 0.0, field_name='ANALYSIS_DELAY', minimum=0.0),
             merge_email_notification=os.getenv('MERGE_EMAIL_NOTIFICATION', 'false').lower() == 'true',
             feishu_max_bytes=parse_env_int(os.getenv('FEISHU_MAX_BYTES'), 20000, field_name='FEISHU_MAX_BYTES', minimum=1),
+            feishu_timeout_seconds=parse_env_float(os.getenv('FEISHU_TIMEOUT_SECONDS'), 30.0, field_name='FEISHU_TIMEOUT_SECONDS', minimum=1.0),
+            feishu_retry_max=parse_env_int(os.getenv('FEISHU_RETRY_MAX'), 3, field_name='FEISHU_RETRY_MAX', minimum=0),
+            feishu_retry_base_delay=parse_env_float(os.getenv('FEISHU_RETRY_BASE_DELAY'), 1.0, field_name='FEISHU_RETRY_BASE_DELAY', minimum=0.0),
             wechat_max_bytes=wechat_max_bytes,
             wechat_msg_type=wechat_msg_type_lower,
             discord_max_words=parse_env_int(os.getenv('DISCORD_MAX_WORDS'), 2000, field_name='DISCORD_MAX_WORDS', minimum=1),
@@ -1663,6 +1735,38 @@ class Config:
                 minimum=0.0,
             ),
             save_context_snapshot=os.getenv('SAVE_CONTEXT_SNAPSHOT', 'true').lower() == 'true',
+            factor_pipeline_enabled=os.getenv('FACTOR_PIPELINE_ENABLED', 'false').lower() == 'true',
+            factor_pipeline_train_days=parse_env_int(
+                os.getenv('FACTOR_PIPELINE_TRAIN_DAYS'),
+                730,
+                field_name='FACTOR_PIPELINE_TRAIN_DAYS',
+                minimum=90,
+                maximum=3650,
+            ),
+            factor_pipeline_valid_days=parse_env_int(
+                os.getenv('FACTOR_PIPELINE_VALID_DAYS'),
+                90,
+                field_name='FACTOR_PIPELINE_VALID_DAYS',
+                minimum=30,
+                maximum=730,
+            ),
+            factor_pipeline_test_days=parse_env_int(
+                os.getenv('FACTOR_PIPELINE_TEST_DAYS'),
+                90,
+                field_name='FACTOR_PIPELINE_TEST_DAYS',
+                minimum=30,
+                maximum=730,
+            ),
+            factor_pipeline_shap_sample_size=parse_env_int(
+                os.getenv('FACTOR_PIPELINE_SHAP_SAMPLE_SIZE'),
+                128,
+                field_name='FACTOR_PIPELINE_SHAP_SAMPLE_SIZE',
+                minimum=1,
+                maximum=2048,
+            ),
+            factor_pipeline_instruments=os.getenv('FACTOR_PIPELINE_INSTRUMENTS', 'csi300'),
+            factor_qlib_provider_uri=os.getenv('FACTOR_QLIB_PROVIDER_URI'),
+            factor_qlib_region=os.getenv('FACTOR_QLIB_REGION', 'cn'),
             backtest_enabled=os.getenv('BACKTEST_ENABLED', 'true').lower() == 'true',
             backtest_eval_window_days=parse_env_int(os.getenv('BACKTEST_EVAL_WINDOW_DAYS'), 10, field_name='BACKTEST_EVAL_WINDOW_DAYS', minimum=1),
             backtest_min_age_days=parse_env_int(os.getenv('BACKTEST_MIN_AGE_DAYS'), 14, field_name='BACKTEST_MIN_AGE_DAYS', minimum=1),
@@ -1673,6 +1777,7 @@ class Config:
                 field_name='BACKTEST_NEUTRAL_BAND_PCT',
                 minimum=0.0,
             ),
+            execution_enabled=os.getenv('EXECUTION_ENABLED', 'false').lower() == 'true',
             log_dir=os.getenv('LOG_DIR', './logs'),
             log_level=os.getenv('LOG_LEVEL', 'INFO'),
             max_workers=parse_env_int(os.getenv('MAX_WORKERS'), 3, field_name='MAX_WORKERS', minimum=1),
@@ -1799,7 +1904,7 @@ class Config:
                 minimum=1,
             ),
             portfolio_fx_update_enabled=os.getenv('PORTFOLIO_FX_UPDATE_ENABLED', 'true').lower() == 'true',
-            alphasift_enabled=parse_env_bool(os.getenv('ALPHASIFT_ENABLED'), default=False),
+            alphasift_enabled=parse_env_bool(os.getenv('ALPHASIFT_ENABLED'), default=True),
             alphasift_install_spec=(
                 DEFAULT_ALPHASIFT_INSTALL_SPEC
                 if os.getenv('ALPHASIFT_INSTALL_SPEC') is None
@@ -2825,6 +2930,10 @@ def extra_litellm_params(model: str, config: Config) -> Dict[str, Any]:
             params["api_base"] = config.openai_base_url
         if config.openai_base_url and "aihubmix.com" in config.openai_base_url:
             params["extra_headers"] = {"APP-Code": "GPIJ3886"}
+    # Add timeout from config (litellm uses 'timeout' or 'request_timeout')
+    timeout = getattr(config, 'litellm_timeout_seconds', 60.0)
+    if timeout:
+        params["timeout"] = timeout
     return params
 
 

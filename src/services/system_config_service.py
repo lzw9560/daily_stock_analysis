@@ -110,6 +110,17 @@ class SystemConfigService:
             "skill": "specialist",
         }
     }
+    # Map legacy provider API-key env vars → (channel_name, protocol, default_base_url, default_models).
+    # When a legacy key exists but no LLM_{NAME}_* entries are present for the
+    # corresponding channel, we synthesise channel entries so the frontend can
+    # discover, test, and switch to those providers.
+    _LEGACY_TO_CHANNEL_MAP: Dict[str, Tuple[str, str, str, str]] = {
+        "DEEPSEEK_API_KEY": ("DEEPSEEK", "openai", "https://api.deepseek.com", "deepseek-chat,deepseek-reasoner"),
+        "DEEPSEEK_API_KEYS": ("DEEPSEEK", "openai", "https://api.deepseek.com", "deepseek-chat,deepseek-reasoner"),
+        "ZHIPU_API_KEY": ("ZHIPU", "openai", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash,glm-4-plus"),
+        "AGNES_API_KEY": ("AGNES", "openai", "", "agnes2-flash"),
+        "AIHUBMIX_KEY": ("AIHUBMIX", "openai", "https://api.aihubmix.com/v1", "deepseek-chat"),
+    }
     _SERVER_MASKED_CONFIG_KEYS: Set[str] = {"ALPHASIFT_INSTALL_SPEC"}
     _NOTIFICATION_TEST_CHANNELS: Tuple[str, ...] = (
         "wechat",
@@ -270,13 +281,22 @@ class SystemConfigService:
 
     @staticmethod
     def _resolve_display_value(raw_value: str, field_schema: Dict[str, Any], raw_value_exists: bool) -> str:
+        """Resolve the display value for a config key.
+
+        When the key exists in the env file, return its raw value directly.
+        When the key is absent (not yet initialized), fall back to the
+        registry-defined default_value so that the UI always sees a sensible
+        initial value rather than an empty string that could cause rendering
+        anomalies.
+        """
         if raw_value_exists:
             return raw_value
 
-        if field_schema.get("ui_control") == "switch":
-            default_value = field_schema.get("default_value")
-            if isinstance(default_value, str) and default_value:
-                return default_value
+        # Use the registry-defined default_value as a fallback for all
+        # field types when the key has never been written to .env.
+        default_value = field_schema.get("default_value")
+        if isinstance(default_value, str) and default_value:
+            return default_value
 
         return raw_value
 
@@ -285,27 +305,57 @@ class SystemConfigService:
         """Return keys needed by the Web schema payload.
 
         Ordinary settings must be registry-backed. LLM channel detail keys are
-        kept only as editor support data for channels declared in LLM_CHANNELS.
+        always exposed when they exist in config_map so the frontend can
+        discover and test any configured provider, even those not (yet)
+        listed in LLM_CHANNELS.
         """
         keys = set(registered_keys)
-        channel_names = {
-            segment.strip().upper()
-            for segment in config_map.get("LLM_CHANNELS", "").split(",")
-            if segment.strip()
-        }
-        if not channel_names:
-            return keys
-
         for key in config_map:
-            match = cls._WEB_SETTINGS_LLM_CHANNEL_SUPPORT_KEY_RE.match(key)
-            if match and match.group(1) in channel_names:
+            if cls._WEB_SETTINGS_LLM_CHANNEL_SUPPORT_KEY_RE.match(key):
                 keys.add(key)
-
         return keys
 
     def get_config(self, include_schema: bool = True, mask_token: str = "******") -> Dict[str, Any]:
         """Return current config values without server-side secret masking."""
         config_map = self._build_display_config_map(self._manager.read_config_map())
+
+        # When running in Docker, the .env file may not exist (env_file injects
+        # values into os.environ instead).  Merge LLM channel detail keys from
+        # os.environ so that the frontend can discover and test any configured
+        # provider, even those not yet listed in LLM_CHANNELS.
+        for key, value in os.environ.items():
+            key_upper = key.upper()
+            if key_upper in config_map:
+                continue
+            if self._WEB_SETTINGS_LLM_CHANNEL_SUPPORT_KEY_RE.match(key_upper):
+                config_map[key_upper] = value
+
+        # Synthesize LLM channel entries for legacy providers so the frontend
+        # can discover all configured suppliers, not just those in LLM_{NAME}_*
+        # format.  Skip providers that already have explicit channel entries.
+        #
+        # Look in both config_map and os.environ (Docker env_file case).
+        for legacy_key, (chan_name, chan_proto, default_base, default_models) in self._LEGACY_TO_CHANNEL_MAP.items():
+            chan_prefix = f"LLM_{chan_name}_"
+            if any(k.startswith(chan_prefix) for k in config_map):
+                continue
+            legacy_value = (config_map.get(legacy_key, "") or os.environ.get(legacy_key, "") or "").strip()
+            if not legacy_value:
+                continue
+            api_key = legacy_value.split(",")[0].strip()  # first key for multi-key vars
+            if not api_key:
+                continue
+            config_map[f"LLM_{chan_name}_PROTOCOL"] = chan_proto
+            config_map[f"LLM_{chan_name}_API_KEY"] = api_key
+            config_map[f"LLM_{chan_name}_MODELS"] = default_models
+            # Resolve base URL: explicit AGNES_API_BASE / OPENAI_BASE_URL override default
+            base_url = default_base
+            if chan_name == "AGNES":
+                base_url = (config_map.get("AGNES_API_BASE", "") or os.environ.get("AGNES_API_BASE", "") or
+                            config_map.get("OPENAI_BASE_URL", "") or os.environ.get("OPENAI_BASE_URL", "") or default_base).strip()
+            if base_url:
+                config_map[f"LLM_{chan_name}_BASE_URL"] = base_url
+
         registered_keys = set(get_registered_field_keys())
         all_keys = set(config_map.keys()) | registered_keys
         if include_schema:
@@ -468,6 +518,115 @@ class SystemConfigService:
             "required_missing_keys": required_missing,
             "next_step_key": required_missing[0] if required_missing else None,
             "checks": checks,
+        }
+
+    def get_model_status(self) -> Dict[str, Any]:
+        """Return consolidated model status for the provider status page."""
+        saved_map = self._manager.read_config_map()
+        effective_map = self._build_display_config_map(saved_map)
+
+        current_model = effective_map.get("LITELLM_MODEL", "")
+        agent_model = effective_map.get("AGENT_LITELLM_MODEL", "")
+        channels_str = effective_map.get("LLM_CHANNELS", "")
+
+        # Parse channel names and individual channel configs
+        channel_names = [n.strip().upper() for n in channels_str.split(",") if n.strip()]
+        available_models: List[Dict[str, Any]] = []
+        added_values: Set[str] = set()
+
+        # Regex to extract LLM_{NAME}_{FIELD} env vars
+        _llm_key_re = re.compile(
+            r"^LLM_([A-Z][A-Z0-9_]*?)_(API_KEY|API_KEYS|BASE_URL|MODELS|PROTOCOL|ENABLED|EXTRA_HEADERS)$"
+        )
+        _non_channel_prefixes = {"TA", "DEEPSEEK"}
+
+        # Collect all channel configs
+        channel_configs: Dict[str, Dict[str, str]] = {}
+        for key, value in effective_map.items():
+            m = _llm_key_re.match(key)
+            if not m:
+                continue
+            name = m.group(1)
+            if name in _non_channel_prefixes:
+                continue
+            field = m.group(2)
+            if name not in channel_configs:
+                channel_configs[name] = {}
+            channel_configs[name][field] = value
+
+        enabled_count = 0
+        total_count = 0
+        seen_channel_names: Set[str] = set()
+
+        # Process active channels first
+        for name in channel_names:
+            cfg = channel_configs.get(name, {})
+            enabled = cfg.get("ENABLED", "true").lower() != "false"
+            total_count += 1
+            seen_channel_names.add(name)
+            if enabled:
+                enabled_count += 1
+            models_raw = cfg.get("MODELS", "")
+            protocol = cfg.get("PROTOCOL", "openai")
+            for model in [m.strip() for m in models_raw.split(",") if m.strip()]:
+                value = model if "/" in model else f"{protocol}/{model}"
+                if value not in added_values:
+                    added_values.add(value)
+                    available_models.append({
+                        "value": value,
+                        "label": model.rsplit("/", 1)[-1],
+                        "provider": name.lower(),
+                        "status": "active" if value == current_model else "available",
+                        "latency_ms": None,
+                        "tested": False,
+                    })
+
+        # Then other discovered providers
+        for name, cfg in channel_configs.items():
+            if name in seen_channel_names:
+                continue
+            if not cfg.get("API_KEY") and not cfg.get("BASE_URL"):
+                continue
+            total_count += 1
+            enabled = cfg.get("ENABLED", "false").lower() != "false"
+            if enabled:
+                enabled_count += 1
+            models_raw = cfg.get("MODELS", "")
+            protocol = cfg.get("PROTOCOL", "openai")
+            for model in [m.strip() for m in models_raw.split(",") if m.strip()]:
+                value = model if "/" in model else f"{protocol}/{model}"
+                if value not in added_values:
+                    added_values.add(value)
+                    available_models.append({
+                        "value": value,
+                        "label": model.rsplit("/", 1)[-1],
+                        "provider": name.lower(),
+                        "status": "active" if value == current_model else "available",
+                        "latency_ms": None,
+                        "tested": False,
+                    })
+
+        # Ensure current model is in the list
+        current_status: str = "unknown"
+        if current_model:
+            if current_model not in added_values:
+                available_models.insert(0, {
+                    "value": current_model,
+                    "label": current_model.rsplit("/", 1)[-1],
+                    "provider": "",
+                    "status": "active",
+                    "latency_ms": None,
+                    "tested": False,
+                })
+            current_status = "active"
+
+        return {
+            "current_model": current_model,
+            "current_model_status": current_status,
+            "agent_model": agent_model,
+            "available_models": available_models,
+            "channel_count": total_count,
+            "enabled_channel_count": enabled_count,
         }
 
     def export_env(self) -> Dict[str, Any]:

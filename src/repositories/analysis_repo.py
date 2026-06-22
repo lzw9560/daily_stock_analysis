@@ -34,6 +34,18 @@ class AnalysisRepository:
         """
         self.db = db_manager or DatabaseManager.get_instance()
     
+    def get_by_id(self, record_id: int) -> Optional[AnalysisHistory]:
+        """按主键 ID 查询分析记录."""
+        try:
+            from sqlalchemy import select
+            with self.db.get_session() as session:
+                return session.execute(
+                    select(AnalysisHistory).where(AnalysisHistory.id == record_id)
+                ).scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"按ID查询分析记录失败: {e}")
+            return None
+
     def get_by_query_id(self, query_id: str) -> Optional[AnalysisHistory]:
         """
         根据 query_id 获取分析记录

@@ -51,7 +51,6 @@ import time
 import uuid
 from datetime import datetime, timezone, timedelta
 
-from data_provider.base import canonical_stock_code
 from src.webui_frontend import prepare_webui_frontend_assets
 from src.config import get_config, Config
 from src.logging_config import setup_logging
@@ -679,6 +678,28 @@ def run_full_analysis(
                     f"自动回测完成: processed={stats.get('processed')} saved={stats.get('saved')} "
                     f"completed={stats.get('completed')} insufficient={stats.get('insufficient')} errors={stats.get('errors')}"
                 )
+
+                # ── 逻辑闭环：回测结果反馈到推荐追踪 ──
+                if stats.get('saved', 0) > 0:
+                    try:
+                        from src.services.logic_closure_service import LogicClosureService
+
+                        closure = LogicClosureService()
+                        # 获取最近的回测结果进行反馈
+                        recent_results = service.get_recent_evaluations(limit=50)
+                        feedback = closure.on_backtest_completed(
+                            backtest_results=recent_results.get("items", []),
+                            auto_feedback=True,
+                        )
+                        if feedback.get("feedback_count"):
+                            logger.info(
+                                "[逻辑闭环] 回测反馈完成: %s 条记录已更新, %s 条规则建议",
+                                feedback["feedback_count"],
+                                len(feedback.get("rule_updates", [])),
+                            )
+                    except Exception as feedback_exc:
+                        logger.debug("[逻辑闭环] 回测反馈失败（不阻断主流程）: %s", feedback_exc)
+
         except Exception as e:
             logger.warning(f"自动回测失败（已忽略）: {e}")
 
@@ -853,6 +874,7 @@ def main() -> int:
     # 解析股票列表（统一为大写 Issue #355）
     stock_codes = None
     if args.stocks:
+        from data_provider.code_utils import canonical_stock_code
         stock_codes = [canonical_stock_code(c) for c in args.stocks.split(',') if (c or "").strip()]
         logger.info(f"使用命令行指定的股票列表: {stock_codes}")
 
@@ -995,6 +1017,35 @@ def main() -> int:
                 run_full_analysis(runtime_config, args, scheduled_stock_codes)
 
             background_tasks = []
+
+            # === 注册选股定时任务 ===
+            if getattr(config, 'alphasift_enabled', False) and getattr(config, 'screening_schedule_enabled', True):
+                screening_schedule_time = getattr(config, 'screening_schedule_time', '08:50')
+
+                def screening_task():
+                    try:
+                        from src.services.screening_service import ScreeningService
+                        service = ScreeningService()
+                        result = service.run_daily_screening()
+                        logger.info(
+                            "自动选股完成: %s/%s 策略成功, %s 只候选",
+                            result.get("completed_strategies", 0),
+                            result.get("total_strategies", 0),
+                            result.get("total_candidates", 0),
+                        )
+                    except Exception as e:
+                        logger.exception("自动选股任务异常: %s", e)
+
+                # 使用 schedule 直接注册（与打板任务方式一致）
+                try:
+                    import schedule as schedule_lib
+                    schedule_lib.every().day.at(screening_schedule_time).do(screening_task)
+                    logger.info(
+                        "已注册选股定时任务: 每日 %s 自动执行多策略选股+回测",
+                        screening_schedule_time,
+                    )
+                except Exception as e:
+                    logger.warning("注册选股定时任务失败: %s", e)
 
             # === 注册打板助手定时任务 ===
             if getattr(config, 'seal_plate_enabled', False):

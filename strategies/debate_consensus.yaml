@@ -1,0 +1,22 @@
+name: debate_consensus
+display_name: 辩论共识
+description: 辩论模式中的裁决阶段，负责整合研究和对抗结果给出最终评分。
+category: framework
+core_rules: [2, 3, 5]
+required_tools:
+  - get_daily_history
+  - analyze_trend
+  - search_stock_news
+default_active: false
+default_router: false
+default_priority: 7
+instructions: |
+  **辩论共识（Consensus）**
+
+  目标：
+  - 综合 Research 和 Battle，给出最终可执行判断。
+  - 输出最终信号、置信度、评分、风险和决策理由。
+
+  要求：
+  - 不能忽略 Battle 阶段提出的核心反证。
+  - 要明确写出最后为什么采纳或否决研究假设。

@@ -2097,11 +2097,39 @@ class GeminiAnalyzer:
             logger.warning("Analyzer LLM: LITELLM_MODEL not configured")
             return
 
+        # 设置全局请求超时（秒），作为兜底
+        global_timeout = getattr(config, 'litellm_timeout_seconds', 60.0)
+        if global_timeout:
+            litellm.request_timeout = global_timeout
+
         self._litellm_available = True
 
         # --- Channel / YAML path: build Router from pre-built model_list ---
         if self._has_channel_config(config):
             model_list = config.llm_model_list
+            # When explicit fallback models are configured, filter the Router's
+            # model_list to only include the primary + fallback models.  This
+            # prevents the Router from retrying on unreliable channels (e.g.
+            # Zhipu / OpenRouter) that happen to be in the channel config.
+            allowed_models = {litellm_model}
+            if config.litellm_fallback_models:
+                allowed_models.update(config.litellm_fallback_models)
+            filtered_model_list = [
+                e for e in model_list
+                if e.get('litellm_params', {}).get('model') in allowed_models
+            ]
+            if filtered_model_list:
+                model_list = filtered_model_list
+                logger.info(
+                    "Analyzer LLM: Router model_list filtered to primary+fallback — "
+                    f"{len(model_list)} deployment(s), models: {sorted(allowed_models)}"
+                )
+            # Add timeout to each model's litellm_params
+            llm_timeout = getattr(config, 'litellm_timeout_seconds', 60.0)
+            for entry in model_list:
+                litellm_params = entry.get('litellm_params', {})
+                if litellm_params and 'timeout' not in litellm_params:
+                    litellm_params['timeout'] = llm_timeout
             try:
                 self._router = Router(
                     model_list=model_list,
@@ -2147,6 +2175,12 @@ class GeminiAnalyzer:
 
         if len(legacy_model_list) > 1:
             self._legacy_router_model_list = legacy_model_list
+            # Add timeout to each model's litellm_params
+            llm_timeout = getattr(config, 'litellm_timeout_seconds', 60.0)
+            for entry in legacy_model_list:
+                litellm_params = entry.get('litellm_params', {})
+                if litellm_params and 'timeout' not in litellm_params:
+                    litellm_params['timeout'] = llm_timeout
             try:
                 self._router = Router(
                     model_list=legacy_model_list,

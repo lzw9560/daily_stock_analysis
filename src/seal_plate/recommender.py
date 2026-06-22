@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Dict, List, Optional
 
 from .models import SealPlateReport, SealPlateStock
 from .recommendation_log import RecommendationItem, RecommendationLog, RecommendationLogStore

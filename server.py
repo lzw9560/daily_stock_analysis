@@ -44,11 +44,25 @@ __all__ = ['app']
 
 
 if __name__ == "__main__":
+    import os
+    import signal
+    import subprocess
+
     import uvicorn
+
+    port = int(os.getenv("WEBUI_PORT", "8501"))
+
+    # Kill existing process on same port
+    try:
+        pids = subprocess.check_output(["pgrep", "-f", f"uvicorn.*server.*{port}"]).strip().split()
+        for pid in pids:
+            os.kill(int(pid), signal.SIGKILL)
+    except Exception:
+        pass
 
     uvicorn.run(
         "server:app",
-        host="0.0.0.0",
-        port=8000,
+        host=os.getenv("WEBUI_HOST", "0.0.0.0"),
+        port=port,
         reload=True,
     )

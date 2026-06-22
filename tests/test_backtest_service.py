@@ -440,6 +440,48 @@ class BacktestServiceTestCase(unittest.TestCase):
                     analysis_date_to=date(2024, 1, 1),
                 )
 
+    def test_run_backtest_v1_prefetches_daily_ranges_once_per_code(self) -> None:
+        self._seed_analysis(
+            query_id="q-prefetch-1",
+            analysis_date=date(2024, 1, 2),
+            created_at=datetime(2024, 1, 20, 0, 0, 0),
+            operation_advice="买入",
+            trend_prediction="看多",
+            start_close=100.0,
+            forward_bars=[
+                StockDaily(code="600519", date=date(2024, 1, 3), high=111.0, low=100.0, close=105.0),
+                StockDaily(code="600519", date=date(2024, 1, 4), high=108.0, low=103.0, close=106.0),
+                StockDaily(code="600519", date=date(2024, 1, 5), high=109.0, low=104.0, close=107.0),
+            ],
+        )
+        self._seed_analysis(
+            query_id="q-prefetch-2",
+            analysis_date=date(2024, 1, 3),
+            created_at=datetime(2024, 1, 21, 0, 0, 0),
+            operation_advice="买入",
+            trend_prediction="看多",
+            start_close=101.0,
+            forward_bars=[
+                StockDaily(code="600519", date=date(2024, 1, 4), high=112.0, low=101.0, close=106.0),
+                StockDaily(code="600519", date=date(2024, 1, 5), high=109.0, low=104.0, close=108.0),
+                StockDaily(code="600519", date=date(2024, 1, 6), high=110.0, low=105.0, close=109.0),
+            ],
+        )
+
+        service = BacktestService(self.db)
+        with patch.object(service.stock_repo, "get_range", wraps=service.stock_repo.get_range) as mocked_get_range:
+            stats = service.run_backtest(code="600519", force=True, eval_window_days=3, min_age_days=0, limit=20)
+
+        self.assertGreaterEqual(stats["processed"], 2)
+        self.assertEqual(mocked_get_range.call_count, 1)
+
+    def test_run_backtest_v1_does_not_invoke_grid_optimizer(self) -> None:
+        service = BacktestService(self.db)
+        with patch.object(service.vbt_engine, "optimize_default_grid", wraps=service.vbt_engine.optimize_default_grid) as mocked_optimize:
+            service.run_backtest(code="600519", force=False, eval_window_days=3, min_age_days=0, limit=10)
+
+        self.assertEqual(mocked_optimize.call_count, 0)
+
     def test_multi_stock_summaries(self) -> None:
         """Verify separate summaries for multiple stocks + correct overall aggregate."""
         old_created_at = datetime(2024, 1, 1, 0, 0, 0)

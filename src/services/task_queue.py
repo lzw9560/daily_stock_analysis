@@ -69,6 +69,7 @@ class TaskInfo:
     progress: int = 0
     message: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
+    factor_pipeline: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     report_type: str = "detailed"
     created_at: datetime = field(default_factory=datetime.now)
@@ -78,6 +79,7 @@ class TaskInfo:
     selection_source: Optional[str] = None
     skills: Optional[List[str]] = None
     trace_id: Optional[str] = None
+    runtime: Optional[Dict[str, Any]] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert task info into an API-friendly dictionary."""
@@ -97,6 +99,8 @@ class TaskInfo:
             "original_query": self.original_query,
             "selection_source": self.selection_source,
             "skills": self.skills,
+            "factor_pipeline": self.factor_pipeline,
+            "runtime": self.runtime,
         }
     
     def copy(self) -> 'TaskInfo':
@@ -109,6 +113,7 @@ class TaskInfo:
             progress=self.progress,
             message=self.message,
             result=self.result,
+            factor_pipeline=self.factor_pipeline,
             error=self.error,
             report_type=self.report_type,
             created_at=self.created_at,
@@ -118,6 +123,7 @@ class TaskInfo:
             selection_source=self.selection_source,
             skills=list(self.skills) if self.skills is not None else None,
             trace_id=self.trace_id or self.task_id,
+            runtime=self.runtime,
         )
 
 
@@ -661,6 +667,7 @@ class AnalysisTaskQueue:
                         task.progress = 100
                         task.completed_at = datetime.now()
                         task.result = result
+                        task.factor_pipeline = self._build_factor_pipeline_overview(task.stock_code)
                         task.message = "分析完成"
                         task.stock_name = result.get("stock_name", task.stock_name)
                         
@@ -757,6 +764,7 @@ class AnalysisTaskQueue:
                     task.progress = 100
                     task.completed_at = datetime.now()
                     task.result = result
+                    task.factor_pipeline = self._build_factor_pipeline_overview(task.stock_code)
                     task.message = "任务执行完成"
 
             self._broadcast_event("task_completed", task.to_dict())
@@ -784,6 +792,18 @@ class AnalysisTaskQueue:
 
             self._cleanup_old_tasks()
             return None
+
+    def _build_factor_pipeline_overview(self, stock_code: str) -> Optional[Dict[str, Any]]:
+        try:
+            from src.services.factor_pipeline_service import FactorPipelineService
+
+            service = FactorPipelineService()
+            overview = service.get_latest_task_factor_pipeline(stock_code=stock_code)
+            if overview:
+                return overview
+        except Exception:
+            logger.debug("Factor pipeline overview unavailable for %s", stock_code, exc_info=True)
+        return None
     
     def _cleanup_old_tasks(self) -> int:
         """

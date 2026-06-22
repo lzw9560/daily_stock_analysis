@@ -39,6 +39,9 @@ class FeishuSender:
         self._feishu_secret = (getattr(config, 'feishu_webhook_secret', None) or '').strip()
         self._feishu_keyword = (getattr(config, 'feishu_webhook_keyword', None) or '').strip()
         self._feishu_max_bytes = getattr(config, 'feishu_max_bytes', 20000)
+        self._feishu_timeout_seconds = getattr(config, 'feishu_timeout_seconds', 30.0)
+        self._feishu_retry_max = getattr(config, 'feishu_retry_max', 3)
+        self._feishu_retry_base_delay = getattr(config, 'feishu_retry_base_delay', 1.0)
         self._webhook_verify_ssl = getattr(config, 'webhook_verify_ssl', True)
 
     def _get_keyword_prefix(self) -> str:
@@ -72,6 +75,168 @@ class FeishuSender:
             "sign": sign,
         }
 
+
+    def send_report_card(
+        self,
+        title: str,
+        summary: str,
+        key_metrics: list,
+        signal: str = "",
+        report_url: str = "",
+        doc_url: str = "",
+        *,
+        timeout_seconds: Optional[float] = None,
+    ) -> bool:
+        """
+        发送带结构的分析报告卡片到飞书。
+
+        使用飞书交互卡片，包含：
+        - 彩色信号标题栏
+        - 核心摘要
+        - 关键指标列表
+        - 下载/查看按钮
+
+        Args:
+            title: 卡片标题（如 "深度分析报告 - 000001 平安银行"）
+            summary: 核心摘要内容（Markdown 格式）
+            key_metrics: 关键指标列表 [("指标名", "值"), ...]
+            signal: 信号方向 (bullish/bearish/neutral)
+            report_url: 报告下载链接
+            doc_url: 飞书云文档链接（可选）
+            timeout_seconds: 超时时间
+
+        Returns:
+            是否发送成功
+        """
+        if not self._feishu_url:
+            logger.warning("飞书 Webhook 未配置，跳过推送")
+            return False
+
+        # 根据信号选择颜色
+        sig_lower = signal.lower()
+        if "bullish" in sig_lower or "buy" in sig_lower or "做多" in sig_lower or "看多" in sig_lower:
+            header_color = "red"  # 中国市场红色=涨
+            signal_text = "📈 看多"
+        elif "bearish" in sig_lower or "sell" in sig_lower or "做空" in sig_lower or "看空" in sig_lower:
+            header_color = "green"  # 中国绿色=跌
+            signal_text = "📉 看空"
+        else:
+            header_color = "grey"
+            signal_text = "➡️ 观望"
+
+        # 构造 tags（关键指标）
+        tags = []
+        for label, value in key_metrics:
+            tags.append({
+                "tag": "div",
+                "text": {
+                    "tag": "lark_md",
+                    "content": f"**{label}**: {value}"
+                }
+            })
+
+        # 构造 elements
+        elements = [
+            {
+                "tag": "markdown",
+                "content": format_feishu_markdown(summary)
+            },
+        ]
+
+        if key_metrics:
+            elements.append({"tag": "hr"})
+            # 飞书 columns 格式适配
+            metric_lines = []
+            for label, value in key_metrics:
+                metric_lines.append(f"**{label}**: {value}")
+            elements.append({
+                "tag": "markdown",
+                "content": "\n".join(metric_lines)
+            })
+
+        # 构造按钮
+        actions = []
+        if doc_url:
+            actions.append({
+                "tag": "button",
+                "text": {
+                    "tag": "plain_text",
+                    "content": "📄 查看飞书文档"
+                },
+                "url": doc_url,
+                "type": "default"
+            })
+        if report_url:
+            actions.append({
+                "tag": "button",
+                "text": {
+                    "tag": "plain_text",
+                    "content": "⬇️ 下载完整报告"
+                },
+                "url": report_url,
+                "type": "primary"
+            })
+
+        if actions:
+            elements.append({"tag": "hr"})
+            elements.append({
+                "tag": "action",
+                "actions": actions
+            })
+
+        # 构建卡片
+        card_payload = {
+            "msg_type": "interactive",
+            "card": {
+                "config": {"wide_screen_mode": True},
+                "header": {
+                    "template": header_color,
+                    "title": {
+                        "tag": "plain_text",
+                        "content": title
+                    }
+                },
+                "elements": elements
+            }
+        }
+
+        security_fields = self._build_security_fields()
+        card_payload.update(security_fields)
+
+        effective_timeout = timeout_seconds or self._feishu_timeout_seconds
+        max_retries = self._feishu_retry_max
+        base_delay = self._feishu_retry_base_delay
+
+        last_error: Optional[Exception] = None
+        for attempt in range(max_retries + 1):
+            try:
+                response = requests.post(
+                    self._feishu_url,
+                    json=card_payload,
+                    timeout=effective_timeout,
+                    verify=self._webhook_verify_ssl
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    code = result.get('code') if 'code' in result else result.get('StatusCode')
+                    if code == 0:
+                        logger.info("飞书报告卡片发送成功")
+                        return True
+                    else:
+                        error_msg = result.get('msg') or result.get('StatusMessage', '未知错误')
+                        logger.error(f"飞书卡片返回错误: {error_msg}")
+                        return False
+                else:
+                    last_error = Exception(f"HTTP {response.status_code}: {response.text}")
+            except Exception as e:
+                last_error = e
+
+            if attempt < max_retries:
+                delay = base_delay * (2 ** attempt)
+                time.sleep(delay)
+
+        logger.error(f"飞书报告卡片发送最终失败: {last_error}")
+        return False
 
     def send_to_feishu(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
         """
@@ -188,9 +353,13 @@ class FeishuSender:
         return success_count == total_chunks
 
     def _send_feishu_message(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
-        """发送单条飞书消息（优先使用 Markdown 卡片）"""
+        """发送单条飞书消息（优先使用 Markdown 卡片），带重试和指数退避"""
         prepared_content = self._apply_keyword_prefix(content)
         security_fields = self._build_security_fields()
+
+        effective_timeout = timeout_seconds or self._feishu_timeout_seconds
+        max_retries = self._feishu_retry_max
+        base_delay = self._feishu_retry_base_delay
 
         def _post_payload(payload: Dict[str, Any]) -> bool:
             request_payload = dict(payload)
@@ -198,32 +367,49 @@ class FeishuSender:
             logger.debug(f"飞书请求 URL: {self._feishu_url}")
             logger.debug(f"飞书请求 payload 长度: {len(prepared_content)} 字符")
 
-            response = requests.post(
-                self._feishu_url,
-                json=request_payload,
-                timeout=timeout_seconds or 30,
-                verify=self._webhook_verify_ssl
-            )
+            last_error: Optional[Exception] = None
+            for attempt in range(max_retries + 1):
+                try:
+                    response = requests.post(
+                        self._feishu_url,
+                        json=request_payload,
+                        timeout=effective_timeout,
+                        verify=self._webhook_verify_ssl
+                    )
 
-            logger.debug(f"飞书响应状态码: {response.status_code}")
-            logger.debug(f"飞书响应内容: {response.text}")
+                    logger.debug(f"飞书响应状态码: {response.status_code}")
+                    logger.debug(f"飞书响应内容: {response.text}")
 
-            if response.status_code == 200:
-                result = response.json()
-                code = result.get('code') if 'code' in result else result.get('StatusCode')
-                if code == 0:
-                    logger.info("飞书消息发送成功")
-                    return True
-                else:
-                    error_msg = result.get('msg') or result.get('StatusMessage', '未知错误')
-                    error_code = result.get('code') or result.get('StatusCode', 'N/A')
-                    logger.error(f"飞书返回错误 [code={error_code}]: {error_msg}")
-                    logger.error(f"完整响应: {result}")
-                    return False
-            else:
-                logger.error(f"飞书请求失败: HTTP {response.status_code}")
-                logger.error(f"响应内容: {response.text}")
-                return False
+                    if response.status_code == 200:
+                        result = response.json()
+                        code = result.get('code') if 'code' in result else result.get('StatusCode')
+                        if code == 0:
+                            logger.info("飞书消息发送成功")
+                            return True
+                        else:
+                            error_msg = result.get('msg') or result.get('StatusMessage', '未知错误')
+                            error_code = result.get('code') or result.get('StatusCode', 'N/A')
+                            logger.error(f"飞书返回错误 [code={error_code}]: {error_msg}")
+                            logger.error(f"完整响应: {result}")
+                            return False
+                    else:
+                        last_error = Exception(f"HTTP {response.status_code}: {response.text}")
+                        logger.warning(f"飞书请求失败 (尝试 {attempt + 1}/{max_retries + 1}): HTTP {response.status_code}")
+
+                except requests.exceptions.Timeout as e:
+                    last_error = e
+                    logger.warning(f"飞书请求超时 (尝试 {attempt + 1}/{max_retries + 1}): {e}")
+                except requests.exceptions.RequestException as e:
+                    last_error = e
+                    logger.warning(f"飞书请求异常 (尝试 {attempt + 1}/{max_retries + 1}): {e}")
+
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)
+                    logger.info(f"飞书发送重试，等待 {delay}s...")
+                    time.sleep(delay)
+
+            logger.error(f"飞书发送最终失败，已重试 {max_retries} 次: {last_error}")
+            return False
 
         # 1) 优先使用交互卡片（支持 Markdown 渲染）
         card_payload = {

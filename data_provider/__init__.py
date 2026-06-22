@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-数据源策略层 - 包初始化
+数据源策略层 - 包初始化 (Lazy)
 ===================================
 
 本包实现策略模式管理多个数据源，实现：
@@ -11,7 +11,7 @@
 
 数据源优先级（动态调整）：
 【配置了 TUSHARE_TOKEN 时】
-1. TushareFetcher (Priority 0) - 🔥 最高优先级（动态提升）
+1. TushareFetcher (Priority 0) - 🎯 最高优先级（动态提升）
 2. EfinanceFetcher (Priority 0) - 同优先级
 3. AkshareFetcher (Priority 1) - 来自 akshare 库
 4. PytdxFetcher (Priority 2) - 来自 pytdx 库（通达信）
@@ -34,22 +34,57 @@
 - THSHotspotFetcher: 同花顺热点概念
 
 提示：优先级数字越小越优先，同优先级按初始化顺序排列
+
+Imports are lazy — fetcher modules are imported on first attribute access
+to keep startup import of the ``data_provider`` package fast.
 """
 
+import importlib
+
 from .base import BaseFetcher, DataFetcherManager
-from .efinance_fetcher import EfinanceFetcher
-from .akshare_fetcher import AkshareFetcher, is_hk_stock_code
-from .tushare_fetcher import TushareFetcher
-from .pytdx_fetcher import PytdxFetcher
-from .baostock_fetcher import BaostockFetcher
-from .tencent_fetcher import TencentFetcher
-from .yfinance_fetcher import YfinanceFetcher
-from .longbridge_fetcher import LongbridgeFetcher
-from .finnhub_fetcher import FinnhubFetcher
-from .alphavantage_fetcher import AlphaVantageFetcher
-from .us_index_mapping import is_us_index_code, is_us_stock_code, get_us_index_yf_symbol, US_INDEX_MAPPING
-from .iwencai_fetcher import IwenCaiFetcher, create_iwencai_fetcher
-from .ths_hotspot_fetcher import THSHotspotFetcher, create_ths_hotspot_fetcher
+
+_FETCHER_MODULES = {
+    "EfinanceFetcher": ".efinance_fetcher",
+    "AkshareFetcher": ".akshare_fetcher",
+    "TushareFetcher": ".tushare_fetcher",
+    "PytdxFetcher": ".pytdx_fetcher",
+    "BaostockFetcher": ".baostock_fetcher",
+    "TencentFetcher": ".tencent_fetcher",
+    "YfinanceFetcher": ".yfinance_fetcher",
+    "LongbridgeFetcher": ".longbridge_fetcher",
+    "FinnhubFetcher": ".finnhub_fetcher",
+    "AlphaVantageFetcher": ".alphavantage_fetcher",
+    "IwenCaiFetcher": ".iwencai_fetcher",
+    "create_iwencai_fetcher": ".iwencai_fetcher",
+    "THSHotspotFetcher": ".ths_hotspot_fetcher",
+    "create_ths_hotspot_fetcher": ".ths_hotspot_fetcher",
+}
+
+_FUNCTION_MODULES = {
+    "is_us_index_code": ".us_index_mapping",
+    "is_us_stock_code": ".us_index_mapping",
+    "is_hk_stock_code": ".akshare_fetcher",
+    "get_us_index_yf_symbol": ".us_index_mapping",
+    "US_INDEX_MAPPING": ".us_index_mapping",
+}
+
+def __getattr__(name: str):
+    return _lazy_import(name)
+
+
+def __dir__():
+    return sorted(__all__)
+
+
+def _lazy_import(name: str):
+    module_name = _FETCHER_MODULES.get(name) or _FUNCTION_MODULES.get(name)
+    if module_name:
+        module = importlib.import_module(module_name, __package__)
+        attr = getattr(module, name)
+        globals()[name] = attr
+        return attr
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     'BaseFetcher',

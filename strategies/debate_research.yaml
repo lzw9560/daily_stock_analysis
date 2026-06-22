@@ -1,0 +1,23 @@
+name: debate_research
+display_name: 辩论研究
+description: 辩论模式中的假设提出阶段，负责形成最强研究假设。
+category: framework
+core_rules: [2, 5]
+required_tools:
+  - get_daily_history
+  - analyze_trend
+  - search_stock_news
+default_active: false
+default_router: false
+default_priority: 5
+instructions: |
+  **辩论研究（Research）**
+
+  目标：
+  - 形成当前标的最强的多空假设之一。
+  - 只输出能支撑假设的关键证据，不要试图平衡所有观点。
+
+  要求：
+  - 重点使用 `get_daily_history`、`analyze_trend`、`search_stock_news`。
+  - 明确写出“为什么这只股票值得研究”。
+  - 给出置信度、评分调整和可验证证据。

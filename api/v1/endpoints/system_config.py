@@ -14,6 +14,7 @@ from api.v1.schemas.system_config import (
     DiscoverLLMChannelModelsResponse,
     ExportSystemConfigResponse,
     ImportSystemConfigRequest,
+    ModelStatusResponse,
     SystemConfigConflictResponse,
     SystemConfigResponse,
     SystemConfigSchemaResponse,
@@ -505,5 +506,33 @@ def get_system_config_schema(
             detail={
                 "error": "internal_error",
                 "message": "Failed to load system configuration schema",
+            },
+        )
+
+
+@router.get(
+    "/config/model-status",
+    response_model=ModelStatusResponse,
+    responses={
+        200: {"description": "Model status loaded"},
+        500: {"description": "Internal server error", "model": ErrorResponse},
+    },
+    summary="Get consolidated model status",
+    description="Return current model, available models, and channel summary for the provider status page.",
+)
+def get_model_status(
+    service: SystemConfigService = Depends(get_system_config_service),
+) -> ModelStatusResponse:
+    """Return consolidated model and channel status without side effects."""
+    try:
+        payload = service.get_model_status()
+        return ModelStatusResponse.model_validate(payload)
+    except Exception as exc:
+        logger.error("Failed to load model status: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "internal_error",
+                "message": "Failed to load model status",
             },
         )

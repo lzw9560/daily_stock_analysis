@@ -243,6 +243,7 @@ async def get_seal_plate_stats():
 
     total_limit_up = 0
     total_sentiment = 0
+    count = 0
 
     for filename in json_files[:30]:  # 最近30天
         filepath = os.path.join(reports_dir, filename)
@@ -251,10 +252,10 @@ async def get_seal_plate_stats():
                 data = json.load(f)
                 total_limit_up += data.get("total_limit_up", 0)
                 total_sentiment += data.get("sentiment_score", 50)
-        except:
-            pass
+                count += 1
+        except (json.JSONDecodeError, OSError, KeyError) as e:
+            logger.debug("跳过损坏的封板报告 %s: %s", filepath, e)
 
-    count = min(len(json_files), 30)
     return {
         "total_reports": len(json_files),
         "avg_limit_up": total_limit_up // count if count else 0,
@@ -2467,8 +2468,8 @@ def _load_watchlist() -> dict:
             data = json.load(f)
             if isinstance(data, dict):
                 return data
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("读取 watchlist.json 失败，将重置为空文件: %s", e)
     return {}
 
 

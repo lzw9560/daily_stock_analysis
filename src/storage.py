@@ -51,6 +51,7 @@ from sqlalchemy.orm import (
     Session,
 )
 from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.sql import text
 
 from src.agent.provider_trace import PROVIDER_TRACE_RETENTION_LIMIT
 from src.config import get_config
@@ -398,6 +399,137 @@ class BacktestSummary(Base):
     )
 
 
+class ScreeningRecord(Base):
+    """每日多策略选股归档记录。
+
+    一次 screening run 生成一条记录，包含：
+    - 执行日期、策略名、市场
+    - 候选数量、筛选耗时
+    - 原始返回的 market_view/selection_logic 等 LLM 分析
+    """
+
+    __tablename__ = 'screening_records'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    screening_date = Column(Date, nullable=False, index=True)
+    strategy = Column(String(64), nullable=False, index=True)
+    market = Column(String(16), nullable=False, default='cn')
+    candidate_count = Column(Integer, default=0)
+    status = Column(String(16), nullable=False, default='completed')  # running/completed/failed
+    duration_seconds = Column(Float)
+    error_message = Column(Text)
+    run_id = Column(String(64))
+    snapshot_count = Column(Integer)
+    after_filter_count = Column(Integer)
+    llm_ranked = Column(Boolean)
+    llm_market_view = Column(Text)
+    llm_selection_logic = Column(Text)
+    llm_portfolio_risk = Column(Text)
+    llm_coverage = Column(Text)
+    warnings_json = Column(Text)
+    source_errors_json = Column(Text)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    __table_args__ = (
+        Index('ix_screening_date_strategy', 'screening_date', 'strategy'),
+        UniqueConstraint(
+            'screening_date', 'strategy', 'market',
+            name='uix_screening_date_strategy_market',
+        ),
+    )
+
+
+class ScreeningCandidate(Base):
+    """单条选股候选结果，关联到 ScreeningRecord。"""
+
+    __tablename__ = 'screening_candidates'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    screening_record_id = Column(
+        Integer,
+        ForeignKey('screening_records.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    rank = Column(Integer, default=0)
+    code = Column(String(16), nullable=False)
+    name = Column(String(64))
+    score = Column(Float)
+    screen_score = Column(Float)
+    llm_score = Column(Float)
+    llm_confidence = Column(Float)
+    reason = Column(Text)
+    risk_level = Column(String(16))
+    risk_flags_json = Column(Text)
+    llm_sector = Column(String(64))
+    llm_theme = Column(String(64))
+    llm_tags_json = Column(Text)
+    llm_thesis = Column(Text)
+    llm_catalysts_json = Column(Text)
+    llm_risks_json = Column(Text)
+    llm_watch_items_json = Column(Text)
+    llm_invalidators_json = Column(Text)
+    llm_style_fit = Column(String(64))
+    price = Column(Float)
+    change_pct = Column(Float)
+    amount = Column(Float)
+    industry = Column(String(64))
+    factor_scores_json = Column(Text)
+    raw_json = Column(Text)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    __table_args__ = (
+        Index('ix_screening_candidate_record', 'screening_record_id'),
+        Index('ix_screening_candidate_code', 'code'),
+    )
+
+
+class ScreeningBacktestLink(Base):
+    """选股结果与回测的关联表。
+
+    当对某次选股结果的股票执行回测后，记录关联关系，
+    方便从选股记录查询对应的回测结果。
+    """
+
+    __tablename__ = 'screening_backtest_links'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    screening_record_id = Column(
+        Integer,
+        ForeignKey('screening_records.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    screening_candidate_id = Column(
+        Integer,
+        ForeignKey('screening_candidates.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
+    backtest_result_id = Column(
+        Integer,
+        ForeignKey('backtest_results.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    backtest_summary_id = Column(
+        Integer,
+        ForeignKey('backtest_summaries.id', ondelete='SET NULL'),
+        nullable=True,
+    )
+    code = Column(String(16), nullable=False)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            'screening_record_id', 'backtest_result_id',
+            name='uix_screening_backtest_link',
+        ),
+        Index('ix_screening_btlink_record', 'screening_record_id'),
+        Index('ix_screening_btlink_code', 'code'),
+    )
+
+
 class PortfolioAccount(Base):
     """Portfolio account metadata."""
 
@@ -597,6 +729,28 @@ class PortfolioFxRate(Base):
     )
 
 
+class BacktestOptimizationLog(Base):
+    """Persisted summary for backtest optimization sweeps."""
+
+    __tablename__ = 'backtest_optimization_logs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(10), nullable=True, index=True)
+    eval_window_days = Column(Integer, nullable=False, index=True)
+    engine_version = Column(String(32), nullable=False, index=True)
+    combinations = Column(Integer, nullable=False, default=0)
+    score_key = Column(String(32), nullable=False, default='score')
+    best_score = Column(Float, nullable=True)
+    best_params_json = Column(Text, nullable=True)
+    best_result_json = Column(Text, nullable=True)
+    results_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    __table_args__ = (
+        Index('ix_backtest_opt_code_engine_created', 'code', 'engine_version', 'created_at'),
+    )
+
+
 class ConversationMessage(Base):
     """
     Agent 对话历史记录表
@@ -623,6 +777,27 @@ class ConversationSummary(Base):
     estimated_tokens = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.now, index=True)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, index=True)
+
+
+class ExperienceRecord(Base):
+    """SQLite-backed debate experience snapshot for agent orchestration."""
+
+    __tablename__ = 'experience_records'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(100), nullable=False, index=True)
+    query_id = Column(String(64), nullable=False, index=True)
+    stock_code = Column(String(16), nullable=False, index=True)
+    mode = Column(String(32), nullable=False, index=True)
+    stage = Column(String(32), nullable=False, index=True)
+    payload = Column(Text, nullable=False)
+    score = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    __table_args__ = (
+        Index('ix_experience_stock_mode_created', 'stock_code', 'mode', 'created_at'),
+        Index('ix_experience_query_stage', 'query_id', 'stage'),
+    )
 
 
 class AgentProviderTurn(Base):
@@ -763,6 +938,86 @@ class AlertCooldownRecord(Base):
     )
 
 
+class DeepAnalysisTask(Base):
+    """TradingAgents 深度分析任务记录 — A股多Agent投研任务状态.
+
+    通过子进程调用 TradingAgents 引擎执行 12 阶段分析流水线,
+    存储任务状态、各阶段报告、最终决策信号和运行统计。
+    """
+
+    __tablename__ = "deep_analysis_tasks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(String(24), unique=True, nullable=False, index=True)
+    ticker = Column(String(20), nullable=False, index=True)
+    trade_date = Column(String(10), nullable=False)
+    status = Column(String(16), nullable=False, default="pending", index=True)
+    signal = Column(String(32))
+    current_stage = Column(String(32))
+    completed_stages_json = Column(Text)
+    stage_reports_json = Column(Text)
+    stats_json = Column(Text)
+    elapsed = Column(Float)
+    error = Column(Text)
+    report_path = Column(String(512))
+    started_at = Column(DateTime, default=datetime.now, index=True)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    __table_args__ = (
+        Index("ix_deep_analysis_status_started", "status", "started_at"),
+    )
+
+
+class RecommendationRecord(Base):
+    """历史推荐追踪记录 — 保存、追踪过往推荐数据并回溯计算胜率.
+
+    核心字段:
+    - 推荐标的(code)、推荐时间(recommendation_time)、推荐价格(recommendation_price)
+    - 当前价格(current_price)、状态(status)、偏差值(price_deviation_pct)
+    - 平仓价格(close_price)、盈亏(profit_loss_pct)
+    - 来源(source)、原始任务 ID(source_task_id)、推荐理由(reason)
+    """
+
+    __tablename__ = "recommendation_records"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(10), nullable=False, index=True)
+    trade_date = Column(String(10), nullable=False, index=True)
+    recommendation_time = Column(DateTime, default=datetime.now, index=True)
+
+    # 推荐方向: buy / sell / hold
+    signal = Column(String(16), nullable=False, default="buy")
+
+    # 价格数据
+    recommendation_price = Column(Float, nullable=False)
+    current_price = Column(Float)
+    price_deviation_pct = Column(Float)  # (current_price - recommendation_price) / recommendation_price * 100
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    # 状态: active(持仓中) / closed(已平仓) / expired(已过期)
+    status = Column(String(16), nullable=False, default="active", index=True)
+
+    # 平仓信息
+    close_price = Column(Float)
+    close_date = Column(DateTime)
+    profit_loss_pct = Column(Float)  # (close_price - recommendation_price) / recommendation_price * 100 (buy)
+
+    # 来源追踪
+    source = Column(String(32), nullable=False, default="analysis")  # analysis / deep_analysis / seal_plate / comprehensive / manual
+    source_task_id = Column(String(64))
+
+    # 推荐理由与备注
+    reason = Column(Text)
+    notes = Column(Text)
+
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    __table_args__ = (
+        Index("ix_rec_code_date", "code", "trade_date"),
+        Index("ix_rec_status_created", "status", "created_at"),
+    )
+
+
 class _DatabaseManagerMeta(type):
     """Serialize DatabaseManager construction across __new__ and __init__."""
 
@@ -844,6 +1099,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             # 创建所有表
             Base.metadata.create_all(self._engine)
 
+            # SQLite 迁移：补充 ORM 模型新增但表中不存在的列
+            if self._is_sqlite_engine:
+                self._migrate_missing_columns()
+
             self._initialized = True
             logger.info(f"数据库初始化完成: {db_url}")
 
@@ -895,6 +1154,51 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 logger.debug("数据库引擎已清理")
         except Exception as e:
             logger.warning(f"清理数据库引擎时出错: {e}")
+
+    def _migrate_missing_columns(self) -> None:
+        """SQLite 仅支持 ADD COLUMN, 补充 ORM 新增但表中不存在的列."""
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(self._engine)
+        existing_tables = set(inspector.get_table_names())
+
+        for table in Base.metadata.tables.values():
+            if table.name not in existing_tables:
+                continue
+            existing_cols = {col["name"] for col in inspector.get_columns(table.name)}
+            model_cols = {col.name for col in table.columns}
+
+            missing = model_cols - existing_cols
+            if not missing:
+                continue
+
+            _type_map = {
+                "String": "VARCHAR",
+                "Text": "TEXT",
+                "Integer": "INTEGER",
+                "Float": "FLOAT",
+                "DateTime": "DATETIME",
+                "Boolean": "BOOLEAN",
+            }
+
+            with self._engine.connect() as conn:
+                for col_name in sorted(missing):
+                    col = table.columns[col_name]
+                    sql_type = _type_map.get(type(col.type).__name__, "VARCHAR")
+                    nullable = "NOT NULL" if not col.nullable else ""
+                    default = ""
+                    if col.default is not None:
+                        raw = col.default.arg
+                        default = f"DEFAULT {raw() if callable(raw) else raw}"
+                    sql = f"ALTER TABLE {table.name} ADD COLUMN {col_name} {sql_type} {nullable} {default}".strip()
+                    try:
+                        conn.execute(text(sql))
+                        conn.commit()
+                        logger.info("数据库迁移: %s.%s 列已添加 (%s)", table.name, col_name, sql_type)
+                    except Exception as exc:
+                        conn.rollback()
+                        if "duplicate column" in str(exc).lower():
+                            continue
+                        logger.warning("数据库迁移: %s.%s 添加失败: %s", table.name, col_name, exc)
 
     def _install_sqlite_pragma_handler(self) -> None:
         """为 SQLite 连接安装竞争保护参数。"""

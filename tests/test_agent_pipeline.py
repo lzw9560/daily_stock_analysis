@@ -201,6 +201,50 @@ class TestAgentConfig(unittest.TestCase):
         self.assertEqual(kwargs["max_steps"], 10)
         self.assertEqual(kwargs["timeout_seconds"], 120)
 
+    def test_build_agent_executor_debate_mode_uses_orchestrator(self) -> None:
+        """Debate mode should build the multi-agent orchestrator path."""
+        provided_config = SimpleNamespace(
+            agent_arch="multi",
+            agent_skills=["bull_trend"],
+            agent_max_steps="10",
+            agent_orchestrator_timeout_s="120",
+            litellm_model="openai/gpt-5",
+            agent_litellm_model="anthropic/claude-3-7-sonnet-20250219",
+            openai_base_url="https://api.openai.com/v1",
+            agent_orchestrator_mode="debate",
+        )
+        fake_orchestrator_module = types.ModuleType("src.agent.orchestrator")
+        fake_orchestrator_cls = MagicMock(return_value=MagicMock())
+        fake_orchestrator_module.AgentOrchestrator = fake_orchestrator_cls
+
+        skill_manager = MagicMock()
+        skill_manager.list_skills.return_value = [
+            SimpleNamespace(
+                name="bull_trend",
+                display_name="bull_trend",
+                description="bull_trend desc",
+                instructions="测试指令",
+                default_active=True,
+                default_router=True,
+                default_priority=100,
+                user_invocable=True,
+                source="builtin",
+            )
+        ]
+        skill_manager.get_skill_instructions.return_value = "测试指令"
+
+        with patch.dict(sys.modules, {
+            "litellm": MagicMock(),
+            "src.agent.orchestrator": fake_orchestrator_module,
+        }):
+            factory_module = importlib.import_module("src.agent.factory")
+            with patch.object(factory_module, "get_skill_manager", return_value=skill_manager), \
+                 patch.object(factory_module, "get_tool_registry", return_value=MagicMock()):
+                factory_module.build_agent_executor(provided_config)
+
+        fake_orchestrator_cls.assert_called_once()
+        self.assertEqual(fake_orchestrator_cls.call_args.kwargs["mode"], "debate")
+
     def test_build_agent_executor_multi_arch_does_not_mutate_llm_route_config(self) -> None:
         """Multi-arch path should keep provider/base_url/runtime fields unchanged."""
         provided_config = SimpleNamespace(

@@ -24,6 +24,20 @@ class BacktestRunResponse(BaseModel):
     errors: int = Field(..., description="错误数")
 
 
+class BacktestOptimizationRequest(BaseModel):
+    code: Optional[str] = Field(None, description="仅优化指定股票")
+    eval_window_days: Optional[int] = Field(None, ge=1, le=120, description="评估窗口（交易日数）")
+    min_age_days: Optional[int] = Field(None, ge=0, le=365, description="分析记录最小天龄（0=不限）")
+    limit: int = Field(200, ge=1, le=2000, description="最多处理的分析记录数")
+
+
+class BacktestOptimizationResponse(BaseModel):
+    combinations: int = Field(..., description="扫描组合数")
+    score_key: str = Field(..., description="评分字段")
+    best: Optional[Dict[str, Any]] = Field(None, description="最优组合结果")
+    results: List[Dict[str, Any]] = Field(default_factory=list, description="所有组合结果")
+
+
 class BacktestResultItem(BaseModel):
     analysis_history_id: int
     code: str
@@ -95,3 +109,27 @@ class PerformanceMetrics(BaseModel):
 
     advice_breakdown: Dict[str, Any] = Field(default_factory=dict)
     diagnostics: Dict[str, Any] = Field(default_factory=dict)
+
+
+class MonteCarloSimulationRequest(BaseModel):
+    symbol: str = Field(..., description="交易标的代码")
+    side: str = Field(..., description="方向：buy/sell")
+    spot: float = Field(..., gt=0, description="当前价格")
+    quantity: int = Field(..., gt=0, description="委托数量")
+    horizon_days: int = Field(10, ge=1, le=365, description="仿真期限（交易日）")
+    paths: int = Field(10000, ge=1, le=100000, description="路径数")
+    model: str = Field("gbm", description="模拟模型：gbm/heston/bootstrap")
+    drift: float = Field(0.0, description="年化漂移")
+    vol: float = Field(0.2, gt=0, description="年化波动率")
+    win_rate: float = Field(0.5, ge=0.0, le=1.0, description="历史胜率")
+    payoff_ratio: float = Field(1.5, gt=0, description="盈亏比")
+    max_position_pct: float = Field(30.0, ge=0, le=100, description="最大仓位上限")
+    dry_run: bool = Field(True, description="是否仅生成计划不实际执行")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="附加元数据")
+
+
+class MonteCarloSimulationResponse(BaseModel):
+    execution_enabled: bool
+    simulation: Dict[str, Any]
+    sizing: Dict[str, Any]
+    order: Dict[str, Any]

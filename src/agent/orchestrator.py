@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Valid orchestrator modes (ordered by cost/depth)
-VALID_MODES = ("quick", "standard", "full", "specialist")
+VALID_MODES = ("quick", "standard", "full", "specialist", "debate")
 
 
 @dataclass
@@ -95,7 +95,7 @@ class AgentOrchestrator:
         self.skill_instructions = skill_instructions
         self.technical_skill_policy = technical_skill_policy
         self.max_steps = max_steps
-        normalized_mode = "specialist" if mode in {"strategy", "skill"} else mode
+        normalized_mode = "specialist" if mode in {"strategy", "skill"} else ("debate" if mode == "debate" else mode)
         self.mode = normalized_mode if normalized_mode in VALID_MODES else "standard"
         self.skill_manager = skill_manager
         self.config = config
@@ -444,6 +444,13 @@ class AgentOrchestrator:
                     parse_dashboard=parse_dashboard,
                 )
 
+            if self.mode == "debate" and agent.agent_name == "decision" and not specialist_agents_inserted:
+                debate_agents = self._build_debate_agents(ctx)
+                specialist_agents_inserted = True
+                if debate_agents:
+                    agents[index:index] = debate_agents
+                    continue
+
             if (
                 self.mode == "specialist"
                 and agent.agent_name == "decision"
@@ -614,8 +621,29 @@ class AgentOrchestrator:
             # Specialist agents are inserted lazily right before the decision
             # stage so the router can see the finished technical opinion.
             return [technical, intel, risk, decision]
+        elif self.mode == "debate":
+            return [technical, intel, risk, decision]
         else:
             return [technical, intel, decision]
+
+    def _build_debate_agents(self, ctx: AgentContext) -> list:
+        """Build the fixed debate chain: Research → Battle → Consensus."""
+        try:
+            from src.agent.skills.debate_agents import DebateBattleAgent, DebateConsensusAgent, DebateResearchAgent
+            common_kwargs = dict(
+                tool_registry=self.tool_registry,
+                llm_adapter=self.llm_adapter,
+                skill_instructions=self.skill_instructions,
+                technical_skill_policy=self.technical_skill_policy,
+            )
+            return [
+                self._prepare_agent(DebateResearchAgent(**common_kwargs)),
+                self._prepare_agent(DebateBattleAgent(**common_kwargs)),
+                self._prepare_agent(DebateConsensusAgent(**common_kwargs)),
+            ]
+        except Exception as exc:
+            logger.warning("[Orchestrator] failed to build debate agents: %s", exc)
+            return []
 
     def _build_specialist_agents(self, ctx: AgentContext) -> list:
         """Build specialist sub-agents based on requested skills.

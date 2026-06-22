@@ -295,8 +295,9 @@ class TavilySearchProvider(BaseSearchProvider):
     文档：https://docs.tavily.com/
     """
     
-    def __init__(self, api_keys: List[str]):
+    def __init__(self, api_keys: List[str], timeout_seconds: float = 15.0):
         super().__init__(api_keys, "Tavily")
+        self.timeout_seconds = timeout_seconds
     
     def _do_search(
         self,
@@ -484,8 +485,9 @@ class SerpAPISearchProvider(BaseSearchProvider):
         "resource_file",
     }
     
-    def __init__(self, api_keys: List[str]):
+    def __init__(self, api_keys: List[str], timeout_seconds: float = 15.0):
         super().__init__(api_keys, "SerpAPI")
+        self.timeout_seconds = timeout_seconds
     
     def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
         """执行 SerpAPI 搜索"""
@@ -1716,13 +1718,20 @@ class SearXNGSearchProvider(BaseSearchProvider):
     _public_instances_stale_retry_after: float = 0.0
     _public_instances_lock = threading.Lock()
 
-    def __init__(self, base_urls: Optional[List[str]] = None, *, use_public_instances: bool = False):
+    def __init__(
+        self,
+        base_urls: Optional[List[str]] = None,
+        *,
+        use_public_instances: bool = False,
+        timeout_seconds: float = 15.0,
+    ):
         normalized_base_urls = [url.rstrip("/") for url in (base_urls or []) if url.strip()]
         super().__init__(normalized_base_urls, "SearXNG")
         self._base_urls = normalized_base_urls
         self._use_public_instances = bool(use_public_instances and not self._base_urls)
         self._cursor = 0
         self._cursor_lock = threading.Lock()
+        self.timeout_seconds = timeout_seconds
 
     @property
     def is_available(self) -> bool:
@@ -2030,7 +2039,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
                 max_attempts=len(self._base_urls),
             )
             retry_enabled = True
-            timeout = self.SELF_HOSTED_TIMEOUT_SECONDS
+            timeout = self.timeout_seconds
             empty_error = "SearXNG 未配置可用实例"
         elif self._use_public_instances:
             public_instances = self._get_public_instances()
@@ -2039,12 +2048,12 @@ class SearXNGSearchProvider(BaseSearchProvider):
                 max_attempts=min(len(public_instances), self.PUBLIC_INSTANCES_MAX_ATTEMPTS),
             )
             retry_enabled = False
-            timeout = self.PUBLIC_INSTANCES_TIMEOUT_SECONDS
+            timeout = self.timeout_seconds
             empty_error = "未获取到可用的公共 SearXNG 实例"
         else:
             candidates = []
             retry_enabled = False
-            timeout = self.PUBLIC_INSTANCES_TIMEOUT_SECONDS
+            timeout = self.timeout_seconds
             empty_error = "SearXNG 未配置可用实例"
 
         if not candidates:
@@ -2165,12 +2174,15 @@ class SearchService:
         self,
         bocha_keys: Optional[List[str]] = None,
         tavily_keys: Optional[List[str]] = None,
+        tavily_timeout_seconds: float = 15.0,
         anspire_keys: Optional[List[str]] = None,
         brave_keys: Optional[List[str]] = None,
         serpapi_keys: Optional[List[str]] = None,
+        serpapi_timeout_seconds: float = 15.0,
         minimax_keys: Optional[List[str]] = None,
         searxng_base_urls: Optional[List[str]] = None,
         searxng_public_instances_enabled: bool = True,
+        searxng_timeout_seconds: float = 15.0,
         news_max_age_days: int = 3,
         news_strategy_profile: str = "short",
     ):
@@ -2215,8 +2227,8 @@ class SearchService:
 
         # 2. Tavily（免费额度更多，每月 1000 次）
         if tavily_keys:
-            self._providers.append(TavilySearchProvider(tavily_keys))
-            logger.info(f"已配置 Tavily 搜索，共 {len(tavily_keys)} 个 API Key")
+            self._providers.append(TavilySearchProvider(tavily_keys, timeout_seconds=tavily_timeout_seconds))
+            logger.info(f"已配置 Tavily 搜索，共 {len(tavily_keys)} 个 API Key, 超时 {tavily_timeout_seconds}s")
 
         # 3. Brave Search（隐私优先，全球覆盖）
         if brave_keys:
@@ -2225,8 +2237,8 @@ class SearchService:
 
         # 4. SerpAPI 作为备选（每月 100 次）
         if serpapi_keys:
-            self._providers.append(SerpAPISearchProvider(serpapi_keys))
-            logger.info(f"已配置 SerpAPI 搜索，共 {len(serpapi_keys)} 个 API Key")
+            self._providers.append(SerpAPISearchProvider(serpapi_keys, timeout_seconds=serpapi_timeout_seconds))
+            logger.info(f"已配置 SerpAPI 搜索，共 {len(serpapi_keys)} 个 API Key, 超时 {serpapi_timeout_seconds}s")
 
         # 5. MiniMax（Coding Plan Web Search，结构化结果）
         if minimax_keys:
@@ -2237,13 +2249,14 @@ class SearchService:
         searxng_provider = SearXNGSearchProvider(
             searxng_base_urls,
             use_public_instances=bool(searxng_public_instances_enabled and not searxng_base_urls),
+            timeout_seconds=searxng_timeout_seconds,
         )
         if searxng_provider.is_available:
             self._providers.append(searxng_provider)
             if searxng_base_urls:
-                logger.info("已配置 SearXNG 搜索，共 %s 个自建实例", len(searxng_base_urls))
+                logger.info("已配置 SearXNG 搜索，共 %s 个自建实例, 超时 %ss", len(searxng_base_urls), searxng_timeout_seconds)
             else:
-                logger.info("已启用 SearXNG 公共实例自动发现模式")
+                logger.info("已启用 SearXNG 公共实例自动发现模式, 超时 %ss", searxng_timeout_seconds)
 
         # 7. Anspire Search（实时智能搜索优化）
         if anspire_keys:

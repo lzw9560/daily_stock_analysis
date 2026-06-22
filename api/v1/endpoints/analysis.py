@@ -618,6 +618,8 @@ def get_task_list(
             error=t.error,
             original_query=t.original_query,
             selection_source=t.selection_source,
+            factor_pipeline=getattr(t, "factor_pipeline", None),
+            runtime=getattr(t, "runtime", None),
         )
         for t in all_tasks
     ]
@@ -766,6 +768,13 @@ def _build_task_analysis_result(task: Any) -> AnalysisResultResponse:
     if not payload.get("stock_name") and getattr(task, "stock_name", None):
         payload["stock_name"] = task.stock_name
 
+    if getattr(task, "factor_pipeline", None) and isinstance(payload.get("report"), dict):
+        report = dict(payload["report"])
+        report_meta = dict(report.get("meta") or {})
+        report_meta["factor_pipeline"] = task.factor_pipeline
+        report["meta"] = report_meta
+        payload["report"] = report
+
     if not payload.get("created_at"):
         payload["created_at"] = (
             _extract_report_created_at(payload)
@@ -869,6 +878,7 @@ def get_analysis_status(task_id: str) -> TaskStatus:
             original_query=task.original_query,
             selection_source=task.selection_source,
             skills=getattr(task, "skills", None),
+            runtime=getattr(task, "runtime", None),
         )
     
     # 2. 从数据库查询已完成的记录
@@ -998,6 +1008,7 @@ def get_analysis_status(task_id: str) -> TaskStatus:
                 ),
                 error=None,
                 skills=skills,
+                runtime=getattr(task, "runtime", None),
             )
 
     except Exception as e:

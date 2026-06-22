@@ -35,9 +35,12 @@ class GracefulShutdown:
         self.shutdown_requested = False
         self._lock = threading.Lock()
 
-        # 注册信号处理器
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        # 注册信号处理器（仅主线程可用）
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGINT, self._signal_handler)
+            signal.signal(signal.SIGTERM, self._signal_handler)
+        else:
+            logger.warning("GracefulShutdown 在非主线程初始化，信号处理器未注册")
 
     def _signal_handler(self, signum, frame):
         """信号处理函数"""

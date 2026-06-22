@@ -633,6 +633,7 @@ class LLMToolAdapter:
         """Convert internal message format to OpenAI-compatible format for litellm."""
         openai_messages: List[Dict[str, Any]] = []
         target_provider = self._trace_provider_for_target(target_model)
+        pending_tool_calls = False
         for msg in messages:
             trace_matches_target = _message_trace_matches_target(
                 msg,
@@ -642,6 +643,8 @@ class LLMToolAdapter:
             if not trace_matches_target:
                 continue
             if msg["role"] == "tool":
+                if not pending_tool_calls:
+                    continue
                 openai_messages.append({
                     "role": "tool",
                     "tool_call_id": msg.get("tool_call_id", ""),
@@ -678,11 +681,13 @@ class LLMToolAdapter:
                 if msg.get("reasoning_content") is not None:
                     openai_msg["reasoning_content"] = msg["reasoning_content"]
                 openai_messages.append(openai_msg)
+                pending_tool_calls = True
             else:
                 openai_messages.append({
                     "role": msg["role"],
                     "content": msg["content"],
                 })
+                pending_tool_calls = False
         return openai_messages
 
     def _trace_provider_for_target(self, target_model: Optional[str]) -> str:

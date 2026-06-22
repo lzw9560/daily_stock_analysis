@@ -610,7 +610,7 @@ class StockAnalysisPipeline:
                 if isinstance(fundamental_context, dict):
                     result.fundamental_context = fundamental_context
 
-            # Step 8: 保存分析历史记录
+            # Step 8: 保存分析历史记录 + 逻辑闭环钩子
             if result and result.success:
                 try:
                     self._emit_progress(97, f"{stock_name}：正在保存分析报告")
@@ -635,6 +635,16 @@ class StockAnalysisPipeline:
                     record_history_run(
                         report_saved=bool(saved_count),
                         metadata_saved=bool(saved_count),
+                    )
+
+                    # ── 逻辑闭环：自动同步推荐追踪 ──
+                    self._trigger_logic_closure(
+                        code=code,
+                        result=result,
+                        query_id=query_id,
+                        trend_result=trend_result,
+                        realtime_quote=realtime_quote,
+                        chip_data=chip_data,
                     )
                 except Exception as e:
                     record_history_run(
@@ -1156,6 +1166,16 @@ class StockAnalysisPipeline:
                     if latest_diagnostic_snapshot is not None:
                         agent_context_snapshot["diagnostics"] = latest_diagnostic_snapshot
                         result.diagnostic_context_snapshot = agent_context_snapshot
+
+                    # ── 逻辑闭环：Agent 模式也自动同步推荐追踪 ──
+                    self._trigger_logic_closure(
+                        code=code,
+                        result=result,
+                        query_id=query_id,
+                        trend_result=trend_result,
+                        realtime_quote=realtime_quote,
+                        chip_data=chip_data,
+                    )
                 except Exception as e:
                     record_history_run(
                         report_saved=False,
@@ -2422,6 +2442,54 @@ class StockAnalysisPipeline:
                     notification_run=notification_run,
                 )
                 logger.error(f"[{stock_code}] 单股推送异常: {e}")
+
+    def _trigger_logic_closure(
+        self,
+        code: str,
+        result: AnalysisResult,
+        query_id: str,
+        trend_result: Optional[TrendAnalysisResult] = None,
+        realtime_quote=None,
+        chip_data: Optional[ChipDistribution] = None,
+    ) -> None:
+        """触发逻辑闭环：交易纪律校验 + 自动创建推荐追踪记录.
+
+        此方法在每次分析完成后自动调用，不阻断主流程。
+        """
+        try:
+            from datetime import datetime
+
+            from src.services.logic_closure_service import LogicClosureService
+
+            trade_date = datetime.now().strftime("%Y-%m-%d")
+            closure = LogicClosureService()
+
+            closure_result = closure.on_analysis_completed(
+                code=code,
+                trade_date=trade_date,
+                result=result,
+                query_id=query_id,
+                source="analysis",
+                trend_result=trend_result,
+                realtime_quote=realtime_quote,
+                chip_data=chip_data,
+                auto_create_record=True,
+            )
+
+            if closure_result.get("discipline_violations"):
+                logger.warning(
+                    "[逻辑闭环] %s 交易纪律校验未通过: %s",
+                    code,
+                    closure_result["discipline_violations"],
+                )
+            elif closure_result.get("recommendation_record_id"):
+                logger.info(
+                    "[逻辑闭环] %s 已自动同步推荐追踪: record_id=%s",
+                    code,
+                    closure_result["recommendation_record_id"],
+                )
+        except Exception as exc:
+            logger.debug("[逻辑闭环] 触发失败（不阻断主流程）: %s", exc)
 
     def _save_local_report(
         self,

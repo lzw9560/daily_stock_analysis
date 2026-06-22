@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Optional, List, Dict, Any
 
 import requests
@@ -93,26 +94,51 @@ class THSHotspotFetcher:
             - fund_flow: 主力净流入(亿)
             - heat_score: 热度评分(0-100)
         """
-        try:
-            resp = self._session.get(_THS_CONCEPT_URL, timeout=self.REQUEST_TIMEOUT)
-            data = resp.json()
-        except Exception as e:
-            self.logger.warning("同花顺概念请求失败: %s", e)
-            return []
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                resp = self._session.get(_THS_CONCEPT_URL, timeout=self.REQUEST_TIMEOUT)
+                # 检测HTML响应（反爬/错误页）
+                content_type = resp.headers.get("Content-Type", "")
+                if "text/html" in content_type.lower():
+                    self.logger.warning("同花顺概念接口返回HTML而非JSON (attempt %d/%d)", attempt + 1, max_retries + 1)
+                    if attempt < max_retries:
+                        time.sleep(1.5 * (attempt + 1))
+                        continue
+                    return []
+                data = resp.json()
+            except Exception as e:
+                self.logger.warning("同花顺概念请求失败 (attempt %d/%d): %s", attempt + 1, max_retries + 1, e)
+                if attempt < max_retries:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                return []
 
         concepts = self._parse_concepts(data)
         return concepts[:top_n]
 
     def get_concept_detail(self, concept_code: str) -> List[Dict[str, Any]]:
         """获取概念板块成分股"""
-        try:
-            url = _THS_CONCEPT_DETAIL_URL.format(code=concept_code)
-            resp = self._session.get(url, timeout=self.REQUEST_TIMEOUT)
-            data = resp.json()
-            return self._parse_concept_stocks(data)
-        except Exception as e:
-            self.logger.warning("同花顺概念详情请求失败: %s", e)
-            return []
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                url = _THS_CONCEPT_DETAIL_URL.format(code=concept_code)
+                resp = self._session.get(url, timeout=self.REQUEST_TIMEOUT)
+                content_type = resp.headers.get("Content-Type", "")
+                if "text/html" in content_type.lower():
+                    self.logger.warning("同花顺概念详情返回HTML (attempt %d/%d)", attempt + 1, max_retries + 1)
+                    if attempt < max_retries:
+                        time.sleep(1.5 * (attempt + 1))
+                        continue
+                    return []
+                data = resp.json()
+                return self._parse_concept_stocks(data)
+            except Exception as e:
+                self.logger.warning("同花顺概念详情请求失败 (attempt %d/%d): %s", attempt + 1, max_retries + 1, e)
+                if attempt < max_retries:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                return []
 
     # ========================
     #  资金流向
@@ -129,13 +155,25 @@ class THSHotspotFetcher:
             - super_large_net: 超大单净流入
             - change_pct: 板块涨跌幅
         """
-        try:
-            resp = self._session.get(_THS_FUND_FLOW_URL, timeout=self.REQUEST_TIMEOUT)
-            data = resp.json()
-            return self._parse_fund_flow(data)[:top_n]
-        except Exception as e:
-            self.logger.warning("同花顺资金流向请求失败: %s", e)
-            return []
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                resp = self._session.get(_THS_FUND_FLOW_URL, timeout=self.REQUEST_TIMEOUT)
+                content_type = resp.headers.get("Content-Type", "")
+                if "text/html" in content_type.lower():
+                    self.logger.warning("同花顺资金流向返回HTML (attempt %d/%d)", attempt + 1, max_retries + 1)
+                    if attempt < max_retries:
+                        time.sleep(1.5 * (attempt + 1))
+                        continue
+                    return []
+                data = resp.json()
+                return self._parse_fund_flow(data)[:top_n]
+            except Exception as e:
+                self.logger.warning("同花顺资金流向请求失败 (attempt %d/%d): %s", attempt + 1, max_retries + 1, e)
+                if attempt < max_retries:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                return []
 
     # ========================
     #  综合分析

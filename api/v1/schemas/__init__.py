@@ -106,6 +106,13 @@ from api.v1.schemas.alerts import (
     AlertTriggerItem,
     AlertTriggerListResponse,
 )
+from api.v1.schemas.deep_analysis import (
+    PipelineStageSchema,
+    RunAnalysisRequest,
+    TaskCreatedResponse,
+    TaskStatsSchema,
+    TaskStatusResponse,
+)
 
 __all__ = [
     # common
@@ -199,4 +206,10 @@ __all__ = [
     "AlertRuleUpdateRequest",
     "AlertTriggerItem",
     "AlertTriggerListResponse",
+    # deep analysis
+    "PipelineStageSchema",
+    "RunAnalysisRequest",
+    "TaskCreatedResponse",
+    "TaskStatsSchema",
+    "TaskStatusResponse",
 ]

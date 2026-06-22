@@ -10,10 +10,14 @@
 
 from src.repositories.analysis_repo import AnalysisRepository
 from src.repositories.backtest_repo import BacktestRepository
+from src.repositories.deep_analysis_repo import DeepAnalysisRepository
+from src.repositories.recommendation_tracking_repo import RecommendationTrackingRepository
 from src.repositories.stock_repo import StockRepository
 
 __all__ = [
     "AnalysisRepository",
     "BacktestRepository",
+    "DeepAnalysisRepository",
+    "RecommendationTrackingRepository",
     "StockRepository",
 ]

@@ -60,7 +60,51 @@ class ChatResponse(BaseModel):
     success: bool
     content: str
     session_id: str
+    runtime: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+
+
+def _build_agent_runtime(result: Any, executor: Any, session_id: str, request: ChatRequest) -> Dict[str, Any]:
+    config = get_config()
+    mode = getattr(config, "agent_orchestrator_mode", "standard")
+    runtime: Dict[str, Any] = {
+        "sessionId": session_id,
+        "mode": mode,
+        "arch": getattr(config, "agent_arch", "single"),
+        "skills": request.effective_skills or [],
+        "totalSteps": getattr(result, "total_steps", 0),
+        "totalTokens": getattr(result, "total_tokens", 0),
+        "provider": getattr(result, "provider", ""),
+        "model": getattr(result, "model", ""),
+        "toolCalls": len(getattr(result, "tool_calls_log", []) or []),
+    }
+
+    if mode == "debate":
+        runtime["debate"] = {
+            "stages": ["research", "battle", "consensus"],
+            "experienceStore": "sqlite",
+        }
+        try:
+            from src.services.experience_store import get_experience_store
+
+            stock_code = request.context.get("stock_code") if isinstance(request.context, dict) else None
+            if isinstance(stock_code, str) and stock_code:
+                recent = get_experience_store().list_recent(stock_code, mode="debate", limit=3)
+                runtime["debate"]["recentExperiences"] = [
+                    {
+                        "id": item.id,
+                        "sessionId": item.session_id,
+                        "queryId": item.query_id,
+                        "stage": item.stage,
+                        "score": item.score,
+                        "createdAt": item.created_at.isoformat() if item.created_at else None,
+                    }
+                    for item in recent
+                ]
+        except Exception as exc:
+            logger.debug("Failed to attach debate runtime metadata: %s", exc)
+
+    return runtime
 
 class SkillInfo(BaseModel):
     id: str
@@ -180,6 +224,7 @@ async def agent_chat(request: ChatRequest):
             success=result.success,
             content=result.content,
             session_id=session_id,
+            runtime=_build_agent_runtime(result, executor, session_id, request),
             error=result.error
         )
             
@@ -418,6 +463,7 @@ async def agent_chat_stream(request: ChatRequest):
                     "type": "done",
                     "success": result.success,
                     "content": result.content,
+                    "runtime": _build_agent_runtime(result, executor, session_id, request),
                     "error": result.error,
                     "total_steps": result.total_steps,
                     "session_id": session_id,

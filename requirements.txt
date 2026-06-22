@@ -37,7 +37,7 @@ openai>=1.0.0               # OpenAI SDK (transitive dependency of litellm, kept
 PyYAML>=6.0                 # YAML parser for LITELLM_CONFIG support
 
 # 搜索引擎（用于获取股票新闻）
-tavily-python>=0.3.0        # Tavily 搜索 API（每月 1000 次免费）
+tavily-python>=0.5.0,<1.0   # Tavily 搜索 API（每月 1000 次免费）
 google-search-results>=2.4.0  # SerpAPI（每月 100 次免费）
 
 # 网络请求
@@ -65,3 +65,11 @@ jinja2>=3.1.0               # Jinja2 template engine for report rendering
 fastapi>=0.109.0            # 现代 Python Web 框架
 uvicorn[standard]>=0.27.0   # ASGI 服务器
 python-multipart>=0.0.6     # FastAPI File/Form upload support
+
+# mootdx: TradingAgents-astock 依赖的通达信行情接口
+# Issue: mootdx bestip 失败后 stocks() 返回 counts=None 导致 TypeError
+# Pin >=0.11 以减少旧版 mootdx bestip 失败概率
+mootdx>=0.11.7,<2.0
+
+# TradingAgents-astock 多Agent投研框架（本地依赖，构建时从 ../TradingAgents-astock 安装）
+../TradingAgents-astock

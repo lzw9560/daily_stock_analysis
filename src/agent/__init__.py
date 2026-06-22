@@ -37,6 +37,9 @@ def __getattr__(name):
     if name == "AgentMemory":
         from src.agent.memory import AgentMemory
         return AgentMemory
+    if name == "ExperienceStore":
+        from src.services.experience_store import ExperienceStore
+        return ExperienceStore
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -50,4 +53,5 @@ __all__ = [
     "AgentRunStats",
     "AgentOrchestrator",
     "AgentMemory",
+    "ExperienceStore",
 ]

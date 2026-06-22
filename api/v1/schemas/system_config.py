@@ -307,3 +307,28 @@ class SystemConfigConflictResponse(BaseModel):
     error: str
     message: str
     current_config_version: str
+
+
+# ── Model status schemas ──────────────────────────────────────────
+
+
+class ModelInfo(BaseModel):
+    """One available model node with runtime status."""
+
+    value: str = Field(..., description="Full model identifier, e.g. deepseek/deepseek-v4-flash")
+    label: str = Field(..., description="Short display label")
+    provider: str = Field("", description="Channel/provider name")
+    status: Literal["active", "available", "untested", "error"] = "untested"
+    latency_ms: Optional[int] = None
+    tested: bool = False
+
+
+class ModelStatusResponse(BaseModel):
+    """Consolidated model status for the provider status page."""
+
+    current_model: str = Field("", description="Currently active LITELLM_MODEL value")
+    current_model_status: Literal["active", "unknown", "error"] = "unknown"
+    agent_model: str = Field("", description="Currently active AGENT_LITELLM_MODEL value, if configured")
+    available_models: List[ModelInfo] = Field(default_factory=list)
+    channel_count: int = 0
+    enabled_channel_count: int = 0

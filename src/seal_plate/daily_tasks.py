@@ -230,15 +230,40 @@ class SealPlateDailyTasks:
             combined_sent = False
             try:
                 from .combined_analyzer import CombinedAnalyzer
-                from .recommender import RecommendationEngine
+                from .recommender import DailyRecommendationResult, PositionRecommendation
+                from .models import SealPlateStock
                 from .recommendation_log import RecommendationLogStore
+                from .win_rate_tracker import WinRateStats
 
-                # 获取最新的推荐结果
-                rec_engine = RecommendationEngine()
-                rec_result = rec_engine.generate_recommendations(
-                    report, date_label=f"{date_str}",
-                )
-                if rec_result.recommendations:
+                rec_log = RecommendationLogStore().load(date)
+                if rec_log and rec_log.recommendations:
+                    rec_result = DailyRecommendationResult(
+                        date=rec_log.date,
+                        label=date,
+                        sentiment_index=rec_log.sentiment_index,
+                        sentiment_phase=rec_log.sentiment_phase,
+                        total_limit_up=rec_log.total_limit_up,
+                        recommendations=[
+                            PositionRecommendation(
+                                stock=SealPlateStock(
+                                    code=r.code,
+                                    name=r.name,
+                                    close_price=0.0,
+                                    change_pct=r.change_pct or 0.0,
+                                    limit_up_price=0.0,
+                                    turnover_rate=0.0,
+                                ),
+                                score=r.score,
+                                rank=i + 1,
+                                confidence="中",
+                                reasons=r.reasons,
+                                risk_warnings=[],
+                                suggested_position_pct=0.0,
+                            )
+                            for i, r in enumerate(rec_log.recommendations)
+                        ],
+                        win_rate_stats=None,
+                    )
                     analyzer = CombinedAnalyzer()
                     combined = analyzer.analyze(rec_result)
                     if self.feishu.enabled:
