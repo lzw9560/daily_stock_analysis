@@ -26,7 +26,6 @@ const ComprehensiveRecommendationPage = lazy(() => import('./pages/Comprehensive
 const DeepAnalysisPage = lazy(() => import('./pages/DeepAnalysisPage'));
 const RecommendationTrackingPage = lazy(() => import('./pages/RecommendationTrackingPage'));
 const StrategyOptimizerPage = lazy(() => import('./pages/StrategyOptimizerPage'));
-const Phase4ExecutionPage = lazy(() => import('./pages/Phase4ExecutionPage'));
 
 const AppContent: React.FC = () => {
   const location = useLocation();

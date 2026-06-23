@@ -3,7 +3,6 @@ import { RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge, Card, StatusDot } from '../common';
 import { DashboardPanelHeader } from '../dashboard';
-import ExecutionTaskCard from './ExecutionTaskCard';
 import FactorPipelineSummaryCard from '../factorPipeline/FactorPipelineSummaryCard';
 import { TaskDetailDisclosure } from './TaskDetailCardShell';
 import type { TaskInfo } from '../../types/analysis';
