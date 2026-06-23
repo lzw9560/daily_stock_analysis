@@ -1,6 +1,5 @@
 import type React from 'react';
 import { RefreshCw } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { Badge, Card, StatusDot } from '../common';
 import { DashboardPanelHeader } from '../dashboard';
 import FactorPipelineSummaryCard from '../factorPipeline/FactorPipelineSummaryCard';
@@ -122,7 +121,6 @@ const TaskItem: React.FC<TaskItemProps> = ({ task }) => {
             />
           </div>
         ) : null}
-        <ExecutionTaskCard task={task} compact />
       </div>
 
       {/* 状态标签 */}
@@ -194,13 +192,6 @@ export const TaskPanel: React.FC<TaskPanelProps> = ({
           headingClassName="items-center"
           actions={(
             <div className="flex items-center gap-2 text-xs text-muted-text">
-              <Link
-                to="/execution"
-                className="inline-flex items-center gap-1 rounded-full border border-cyan/20 bg-cyan/10 px-2.5 py-1 text-[11px] font-medium text-cyan transition-colors hover:border-cyan/35 hover:bg-cyan/15"
-                aria-label="打开执行面板"
-              >
-                执行面板
-              </Link>
               {processingCount > 0 && (
                 <span className="flex items-center gap-1">
                   <StatusDot tone="info" pulse className="h-1.5 w-1.5" aria-label="进行中任务" />

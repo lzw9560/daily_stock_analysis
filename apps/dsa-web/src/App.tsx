@@ -92,7 +92,6 @@ const AppContent: React.FC = () => {
         <Route path="/deep-analysis" element={<DeepAnalysisPage />} />
         <Route path="/recommendation-tracking" element={<RecommendationTrackingPage />} />
         <Route path="/strategy-optimizer" element={<StrategyOptimizerPage />} />
-        <Route path="/execution" element={<Phase4ExecutionPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />

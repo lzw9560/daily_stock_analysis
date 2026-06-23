@@ -867,11 +867,227 @@
   transition: opacity 0.25s ease-out, transform 0.25s ease-out;
 }
 
+/* Skill Description Tooltip — fixed positioning so it floats without shifting layout */
+.skill-desc-tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--border) / 0.8);
+  background: hsl(var(--card) / 0.96);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px hsl(var(--foreground) / 0.12);
+  pointer-events: none;
+  white-space: normal;
+}
+.skill-desc-tooltip .skill-title {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: hsl(var(--foreground));
+  margin: 0 0 0.25rem 0;
+}
+.skill-desc-tooltip p:last-child {
+  font-size: 0.75rem;
+  color: hsl(var(--text-secondary));
+  margin: 0;
+  line-height: 1.45;
+}
+
 /* =========================================
-   15. BACKWARD COMPATIBILITY (Legacy variable aliases)
-   These map old variable names to the new token system.
-   Components still using these will continue to work.
-   ========================================= */
+    16. ORANGE THEME
+    ========================================= */
+
+.orange {
+  --background: 24 33% 96%;
+  --foreground: 24 20% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 24 20% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 24 20% 12%;
+  --primary: 24 100% 50%;
+  --primary-foreground: 24 33% 96%;
+  --secondary: 28 32% 92%;
+  --secondary-foreground: 24 20% 16%;
+  --muted: 26 30% 94%;
+  --muted-foreground: 24 12% 42%;
+  --accent: 28 32% 93%;
+  --accent-foreground: 24 20% 16%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 24 33% 98%;
+  --border: 24 20% 84%;
+  --input: 24 20% 84%;
+  --ring: 24 100% 50%;
+
+  --color-success: 152 69% 40%;
+  --color-warning: 37 92% 50%;
+  --color-danger: 0 90% 55%;
+  --color-purple: 277 84% 66%;
+  --color-cyan: hsl(var(--primary));
+  --color-cyan-dim: hsl(var(--primary) / 0.8);
+  --color-cyan-glow: hsl(var(--primary) / 0.18);
+  --color-purple-dim: 277 84% 56%;
+  --color-purple-glow: hsl(277 84% 66% / 0.18);
+
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+
+  --elevated: 0 0% 100%;
+  --hover: 26 29% 90%;
+  --surface-1: hsl(var(--card));
+  --surface-2: hsl(var(--elevated));
+  --surface-3: hsl(var(--hover));
+  --overlay-hover: hsl(var(--foreground) / 0.05);
+  --overlay-selected: hsl(var(--primary) / 0.1);
+
+  --text-primary: hsl(var(--foreground));
+  --text-secondary: hsl(24 18% 28%);
+  --text-muted: hsl(24 12% 35%);
+
+  --border-dim: hsl(var(--foreground) / 0.05);
+  --border-subtle: hsl(var(--foreground) / 0.04);
+  --border-subtle-hover: hsl(var(--foreground) / 0.06);
+  --border-hover: hsl(var(--primary) / 0.24);
+  --border-selected: hsl(var(--primary) / 0.32);
+  --border-accent: hsl(var(--primary) / 0.7);
+
+  --shadow-sm: 0 1px 3px hsl(24 20% 34% / 0.06);
+  --shadow-md: 0 12px 24px hsl(24 20% 34% / 0.09), 0 3px 8px hsl(24 16% 28% / 0.05);
+  --shadow-lg: 0 18px 34px hsl(24 20% 32% / 0.12), 0 6px 16px hsl(24 16% 28% / 0.07);
+
+  --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.74));
+  --gradient-cyan-purple: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--color-purple)));
+
+  --input-bg: hsl(var(--card));
+  --input-border: hsl(28 24% 80% / 0.92);
+  --input-border-hover: hsl(28 20% 70% / 0.92);
+  --input-border-focus: hsl(var(--primary) / 0.38);
+  --input-focus-ring: 0 0 0 4px hsl(var(--primary) / 0.15);
+
+  --nav-active-bg: hsl(var(--primary) / 0.09);
+  --nav-active-border: hsl(var(--primary) / 0.24);
+  --nav-hover-bg: hsl(var(--primary) / 0.05);
+  --nav-icon-active: hsl(var(--primary));
+
+  --sentiment-greed: hsl(var(--primary));
+  --sentiment-neutral: var(--color-purple);
+  --sentiment-fear: var(--color-danger);
+  --sentiment-greed-glow: hsl(var(--sentiment-greed) / 0.18);
+  --sentiment-neutral-glow: hsl(var(--sentiment-neutral) / 0.18);
+  --sentiment-fear-glow: hsl(var(--sentiment-fear) / 0.18);
+
+  --page-accent-bg: hsl(var(--primary) / 0.1);
+  --page-accent-bg-hover: hsl(var(--primary) / 0.16);
+  --page-accent-border: hsl(var(--primary) / 0.2);
+  --page-accent-border-hover: hsl(var(--primary) / 0.28);
+  --page-accent-text: hsl(var(--primary));
+  --page-panel-border: hsl(28 24% 82% / 0.92);
+  --page-panel-border-hover: hsl(var(--primary) / 0.2);
+  --page-panel-shadow: 0 14px 32px hsl(24 22% 34% / 0.08), 0 4px 10px hsl(24 18% 28% / 0.04);
+  --page-panel-gradient: linear-gradient(180deg, hsl(var(--primary) / 0.1), hsl(var(--color-purple) / 0.08), hsl(28 22% 78% / 0.08));
+
+  --chat-user-bg: hsl(var(--primary) / 0.1);
+  --chat-user-border: hsl(var(--primary) / 0.2);
+  --chat-ai-bg: hsl(var(--card) / 0.85);
+  --chat-ai-border: hsl(var(--foreground) / 0.2);
+
+  --login-bg: hsl(26 34% 96%);
+  --login-card-bg: hsl(24 43% 92% / 0.78);
+  --login-card-border: hsl(24 28% 28% / 0.58);
+}
+
+.orange-dark {
+  --background: 24 35% 7%;
+  --foreground: 24 33% 98%;
+  --card: 24 24% 10%;
+  --card-foreground: 24 33% 98%;
+  --popover: 24 24% 10%;
+  --popover-foreground: 24 33% 98%;
+  --primary: 24 100% 55%;
+  --primary-foreground: 24 35% 8%;
+  --secondary: 24 19% 15%;
+  --secondary-foreground: 24 33% 94%;
+  --muted: 24 18% 14%;
+  --muted-foreground: 24 13% 66%;
+  --accent: 24 18% 16%;
+  --accent-foreground: 24 33% 98%;
+  --destructive: 349 100% 63%;
+  --destructive-foreground: 24 33% 98%;
+  --border: 24 19% 20%;
+  --input: 24 19% 20%;
+  --ring: 24 100% 55%;
+
+  --color-cyan: hsl(var(--primary));
+  --color-cyan-dim: hsl(var(--primary) / 0.8);
+  --color-cyan-glow: hsl(var(--primary) / 0.4);
+  --color-purple: 277 84% 72%;
+  --color-purple-dim: 277 84% 62%;
+  --color-purple-glow: hsl(277 84% 72% / 0.3);
+
+  --elevated: 24 22% 12%;
+  --hover: 24 20% 16%;
+  --surface-1: hsl(var(--card));
+  --surface-2: hsl(var(--elevated));
+  --surface-3: hsl(var(--hover));
+  --overlay-hover: hsl(var(--foreground) / 0.08);
+  --overlay-selected: hsl(var(--primary) / 0.15);
+
+  --text-primary: hsl(var(--foreground));
+  --text-secondary: hsl(24 16% 72%);
+  --text-muted: hsl(24 10% 48%);
+
+  --border-dim: hsl(var(--foreground) / 0.06);
+  --border-subtle: hsl(var(--foreground) / 0.08);
+  --border-subtle-hover: hsl(var(--foreground) / 0.15);
+  --border-hover: hsl(var(--primary) / 0.34);
+  --border-selected: hsl(var(--primary) / 0.46);
+  --border-accent: hsl(var(--primary) / 0.8);
+
+  --shadow-sm: 0 1px 3px hsl(24 25% 10% / 0.2);
+  --shadow-md: 0 18px 48px hsl(24 25% 10% / 0.4);
+  --shadow-lg: 0 24px 56px hsl(24 25% 10% / 0.5);
+
+  --gradient-primary: linear-gradient(135deg, rgba(255, 127, 0, 0.96), rgba(230, 100, 0, 0.96));
+  --gradient-cyan-purple: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--color-purple)));
+
+  --input-bg: hsl(var(--card));
+  --input-border: hsl(var(--border) / 0.82);
+  --input-border-hover: rgba(255, 255, 255, 0.18);
+  --input-border-focus: hsl(var(--primary) / 0.45);
+  --input-focus-ring: 0 0 0 4px hsl(var(--primary) / 0.18);
+
+  --nav-active-bg: hsl(var(--primary) / 0.11);
+  --nav-active-border: hsl(var(--primary) / 0.3);
+  --nav-hover-bg: hsl(var(--primary) / 0.06);
+  --nav-icon-active: hsl(var(--primary));
+
+  --sentiment-greed-glow: hsl(var(--sentiment-greed) / 0.3);
+  --sentiment-neutral-glow: hsl(var(--sentiment-neutral) / 0.3);
+  --sentiment-fear-glow: hsl(var(--sentiment-fear) / 0.3);
+
+  --page-accent-bg: hsl(var(--primary) / 0.1);
+  --page-accent-bg-hover: hsl(var(--primary) / 0.18);
+  --page-accent-border: hsl(var(--primary) / 0.22);
+  --page-accent-border-hover: hsl(var(--primary) / 0.34);
+  --page-accent-text: hsl(var(--primary));
+  --page-panel-border: hsl(var(--foreground) / 0.1);
+  --page-panel-border-hover: hsl(var(--primary) / 0.34);
+  --page-panel-shadow: 0 4px 16px hsl(var(--primary) / 0.08);
+  --page-panel-gradient: linear-gradient(180deg, hsl(var(--primary) / 0.22), hsl(var(--color-purple) / 0.18), hsl(var(--foreground) / 0.08));
+
+  --chat-user-bg: hsl(var(--primary) / 0.1);
+  --chat-user-border: hsl(var(--primary) / 0.2);
+  --chat-ai-bg: hsl(var(--card) / 0.72);
+  --chat-ai-border: hsl(0 0% 100% / 0.12);
+
+  --login-bg: hsl(24 84% 5%);
+  --login-card-bg: hsl(24 34% 8%);
+  --login-card-border: hsl(0 0% 100% / 0.05);
+}
 
 :root {
   /* Navigation */

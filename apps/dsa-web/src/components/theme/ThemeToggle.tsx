@@ -1,10 +1,10 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { Check, Monitor, Moon, Sun } from 'lucide-react';
+import { Check, Flame, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '../../utils/cn';
 
-type ThemeOption = 'light' | 'dark' | 'system';
+type ThemeOption = 'light' | 'dark' | 'orange' | 'orange-dark' | 'system';
 type ThemeToggleVariant = 'default' | 'nav';
 
 const THEME_OPTIONS: Array<{
@@ -14,6 +14,8 @@ const THEME_OPTIONS: Array<{
 }> = [
   { value: 'light', label: '浅色', icon: Sun },
   { value: 'dark', label: '深色', icon: Moon },
+  { value: 'orange', label: '橙色(浅)', icon: Flame },
+  { value: 'orange-dark', label: '橙色(深)', icon: Flame },
   { value: 'system', label: '跟随系统', icon: Monitor },
 ];
 
@@ -23,6 +25,10 @@ function resolveThemeLabel(theme: string | undefined) {
       return '浅色';
     case 'dark':
       return '深色';
+    case 'orange':
+      return '橙色(浅)';
+    case 'orange-dark':
+      return '橙色(深)';
     default:
       return '跟随系统';
   }
@@ -60,7 +66,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
 
   const activeTheme = (theme as ThemeOption | undefined) ?? 'system';
   const visualTheme = resolvedTheme ?? 'dark';
-  const TriggerIcon = visualTheme === 'light' ? Sun : Moon;
+  const TriggerIcon = visualTheme === 'light' ? Sun : visualTheme === 'orange' || visualTheme === 'orange-dark' ? Flame : Moon;
   const isNavVariant = variant === 'nav';
 
   return (

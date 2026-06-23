@@ -2,7 +2,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { TaskPanel } from '../TaskPanel';
-import { saveExecutionResult } from '../../../utils/executionMemory';
 
 beforeEach(() => {
   localStorage.clear();
@@ -82,11 +81,6 @@ describe('TaskPanel', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: '打开执行面板' })).toHaveAttribute('href', '/execution');
-    expect(screen.getByRole('link', { name: '打开预填执行面板' })).toHaveAttribute(
-      'href',
-      expect.stringContaining('/execution?symbol=600519'),
-    );
     expect(screen.getByText('执行任务卡')).toBeInTheDocument();
     expect(screen.getByText('最近结果 · 仅预览')).toBeInTheDocument();
   });

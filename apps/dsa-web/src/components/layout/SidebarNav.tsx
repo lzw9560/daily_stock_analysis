@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { BarChart3, Bell, Brain, Home, LogOut, MessageSquareQuote, Search, Settings2, Sparkles, Target, TrendingUp, Wallet, Zap } from 'lucide-react';
+import { BarChart3, Bell, Brain, Home, LogOut, MessageSquareQuote, Search, Settings2, Sparkles, Target, TrendingUp, Zap } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { ALPHASIFT_CONFIG_CHANGED_EVENT, SYSTEM_CONFIG_CHANGED_EVENT, alphasiftApi } from '../../api/alphasift';
 import { useAuth } from '../../contexts/AuthContext';
@@ -36,7 +36,6 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'deep-analysis', label: '深度分析', to: '/deep-analysis', icon: Sparkles },
   { key: 'recommendation-tracking', label: '推荐追踪', to: '/recommendation-tracking', icon: Target },
   { key: 'strategy-optimizer', label: '策略优化', to: '/strategy-optimizer', icon: TrendingUp },
-  { key: 'execution', label: '执行面板', to: '/execution', icon: Wallet },
   { key: 'comprehensive', label: '综合推荐', to: '/comprehensive', icon: Brain },
   { key: 'alerts', label: '告警', to: '/alerts', icon: Bell },
   { key: 'settings', label: '设置', to: '/settings', icon: Settings2 },
