@@ -284,5 +284,22 @@ class StrategyOptimizer:
                 "generated_at": datetime.now().isoformat(),
                 "health_score": 0,
                 "health_level": "数据不足",
+                "key_metrics": {
+                    "win_rate": 0,
+                    "profit_factor": 0,
+                    "direction_accuracy": 0,
+                    "total_records": 0,
+                    "closed_count": 0,
+                },
+                "source_weights": {},
+                "optimized_params": {
+                    "hard_stop_pct": -7.0,
+                    "trailing_stop_pct": -3.0,
+                    "take_profit_target_pct": 10.0,
+                    "time_stop_days": 5,
+                },
+                "issues": [],
+                "suggestions": [],
+                "high_risk_positions": [],
                 "error": str(exc),
             }

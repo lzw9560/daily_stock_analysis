@@ -638,6 +638,6 @@ def reset_bidding_monitor():
         if _bidding_monitor is not None:
             try:
                 _bidding_monitor.stop_monitoring()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("竞价监控器停止失败: %s", e)
         _bidding_monitor = None

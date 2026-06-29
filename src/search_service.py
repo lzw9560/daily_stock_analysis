@@ -489,8 +489,25 @@ class SerpAPISearchProvider(BaseSearchProvider):
         super().__init__(api_keys, "SerpAPI")
         self.timeout_seconds = timeout_seconds
     
+    @staticmethod
+    def _is_chinese_query(query: str) -> bool:
+        """判断查询是否包含中文"""
+        return bool(re.search(r'[\u4e00-\u9fff]', query))
+
+    @staticmethod
+    def _resolve_tbs(days: int) -> str:
+        """根据天数返回 Google 时间范围参数"""
+        if days <= 1:
+            return "qdr:d"
+        elif days <= 7:
+            return "qdr:w"
+        elif days <= 30:
+            return "qdr:m"
+        else:
+            return "qdr:y"
+
     def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
-        """执行 SerpAPI 搜索"""
+        """执行 SerpAPI 搜索，中文查询优先 Google，无结果时回退到百度"""
         try:
             from serpapi import GoogleSearch
         except ImportError:
@@ -501,167 +518,42 @@ class SerpAPISearchProvider(BaseSearchProvider):
                 success=False,
                 error_message="google-search-results 未安装，请运行: pip install google-search-results"
             )
-        
+
         try:
-            # 确定时间范围参数 tbs
-            tbs = "qdr:w"  # 默认一周
-            if days <= 1:
-                tbs = "qdr:d"  # 过去24小时
-            elif days <= 7:
-                tbs = "qdr:w"  # 过去一周
-            elif days <= 30:
-                tbs = "qdr:m"  # 过去一月
-            else:
-                tbs = "qdr:y"  # 过去一年
+            results, response = self._search_google(query, api_key, max_results, days)
 
-            # 使用 Google 搜索 (获取 Knowledge Graph, Answer Box 等)
-            params = {
-                "engine": "google",
-                "q": query,
-                "api_key": api_key,
-                "google_domain": "google.com.hk", # 使用香港谷歌，中文支持较好
-                "hl": "zh-cn",  # 中文界面
-                "gl": "cn",     # 中国地区偏好
-                "tbs": tbs,     # 时间范围限制
-                "num": max_results # 请求的结果数量，注意：Google API有时不严格遵守
-            }
-            
-            search = GoogleSearch(params)
-            response = search.get_dict()
-            
-            # 记录原始响应到日志
-            logger.debug(f"[SerpAPI] 原始响应 keys: {response.keys()}")
-            
-            # 解析结果
-            results = []
-            
-            # 1. 解析 Knowledge Graph (知识图谱)
-            kg = response.get('knowledge_graph', {})
-            if kg:
-                title = kg.get('title', '知识图谱')
-                desc = kg.get('description', '')
-                
-                # 提取额外属性
-                details = []
-                for key in ['type', 'founded', 'headquarters', 'employees', 'ceo']:
-                    val = kg.get(key)
-                    if val:
-                        details.append(f"{key}: {val}")
-                        
-                snippet = f"{desc}\n" + " | ".join(details) if details else desc
-                
-                results.append(SearchResult(
-                    title=f"[知识图谱] {title}",
-                    snippet=snippet,
-                    url=kg.get('source', {}).get('link', ''),
-                    source="Google Knowledge Graph"
-                ))
-                
-            # 2. 解析 Answer Box (精选回答/行情卡片)
-            ab = response.get('answer_box', {})
-            if ab:
-                ab_title = ab.get('title', '精选回答')
-                ab_snippet = ""
-                
-                # 财经类回答
-                if ab.get('type') == 'finance_results':
-                    stock = ab.get('stock', '')
-                    price = ab.get('price', '')
-                    currency = ab.get('currency', '')
-                    movement = ab.get('price_movement', {})
-                    mv_val = movement.get('percentage', 0)
-                    mv_dir = movement.get('movement', '')
-                    
-                    ab_title = f"[行情卡片] {stock}"
-                    ab_snippet = f"价格: {price} {currency}\n涨跌: {mv_dir} {mv_val}%"
-                    
-                    # 提取表格数据
-                    if 'table' in ab:
-                        table_data = []
-                        for row in ab['table']:
-                            if 'name' in row and 'value' in row:
-                                table_data.append(f"{row['name']}: {row['value']}")
-                        if table_data:
-                            ab_snippet += "\n" + "; ".join(table_data)
-                            
-                # 普通文本回答
-                elif 'snippet' in ab:
-                    ab_snippet = ab.get('snippet', '')
-                    list_items = ab.get('list', [])
-                    if list_items:
-                        ab_snippet += "\n" + "\n".join([f"- {item}" for item in list_items])
-                
-                elif 'answer' in ab:
-                    ab_snippet = ab.get('answer', '')
-                    
-                if ab_snippet:
-                    results.append(SearchResult(
-                        title=f"[精选回答] {ab_title}",
-                        snippet=ab_snippet,
-                        url=ab.get('link', '') or ab.get('displayed_link', ''),
-                        source="Google Answer Box"
-                    ))
-
-            # 3. 解析 Related Questions (相关问题)
-            rqs = response.get('related_questions', [])
-            for rq in rqs[:3]: # 取前3个
-                question = rq.get('question', '')
-                snippet = rq.get('snippet', '')
-                link = rq.get('link', '')
-                
-                if question and snippet:
-                     results.append(SearchResult(
-                        title=f"[相关问题] {question}",
-                        snippet=snippet,
-                        url=link,
-                        source="Google Related Questions"
-                     ))
-
-            # 4. 解析 Organic Results (自然搜索结果)
-            organic_results = response.get('organic_results', [])
-            organic_content_fetch_attempts = 0
-
-            for rank, item in enumerate(organic_results[:max_results]):
-                link = item.get('link', '')
-                rich_extensions = self._extract_rich_snippet_extensions(item)
-                snippet = self._build_organic_snippet(item, rich_extensions=rich_extensions)
-
-                if self._should_fetch_organic_content(
-                    link=link,
-                    snippet=snippet,
-                    rank=rank,
-                    fetched_count=organic_content_fetch_attempts,
-                    has_structured_summary=bool(rich_extensions),
-                ):
-                    organic_content_fetch_attempts += 1
-                    try:
-                        fetched_content = fetch_url_content(
-                            link,
-                            timeout=self._ORGANIC_CONTENT_FETCH_TIMEOUT,
+            # 中文查询且 Google 未返回自然搜索结果时，回退到百度
+            is_chinese = self._is_chinese_query(query)
+            google_organic = response.get('organic_results', [])
+            if is_chinese and not google_organic and not results:
+                logger.info(
+                    "[SerpAPI] Google 对中文查询 '%s' 无结果，回退到百度搜索",
+                    query[:60],
+                )
+                try:
+                    baidu_results, _ = self._search_baidu(query, api_key, max_results)
+                    if baidu_results:
+                        results = baidu_results
+                        logger.info(
+                            "[SerpAPI] 百度回退搜索成功，返回 %d 条结果",
+                            len(baidu_results),
                         )
-                        if fetched_content:
-                            snippet = self._merge_organic_snippet_with_content(
-                                snippet,
-                                fetched_content,
-                            )
-                    except Exception as e:
-                        logger.debug(f"[SerpAPI] Fetch content failed: {e}")
+                except Exception as e:
+                    logger.debug(f"[SerpAPI] 百度回退搜索失败: {e}")
 
-                results.append(SearchResult(
-                    title=item.get('title', ''),
-                    snippet=snippet[:1000], # 限制总长度
-                    url=link,
-                    source=item.get('source', self._extract_domain(link)),
-                    published_date=item.get('date'),
-                ))
+            provider_name = self.name
+            if results:
+                first_source = results[0].source
+                if "Baidu" in first_source:
+                    provider_name = f"{self.name} (Baidu)"
 
             return SearchResponse(
                 query=query,
                 results=results,
-                provider=self.name,
+                provider=provider_name,
                 success=True,
             )
-            
+
         except Exception as e:
             error_msg = str(e)
             return SearchResponse(
@@ -671,6 +563,188 @@ class SerpAPISearchProvider(BaseSearchProvider):
                 success=False,
                 error_message=error_msg
             )
+
+    def _search_google(
+        self, query: str, api_key: str, max_results: int, days: int
+    ) -> tuple:
+        """使用 Google 引擎搜索，返回 (results_list, raw_response_dict)"""
+        from serpapi import GoogleSearch
+
+        tbs = self._resolve_tbs(days)
+        params = {
+            "engine": "google",
+            "q": query,
+            "api_key": api_key,
+            "google_domain": "google.com.hk",
+            "hl": "zh-cn",
+            "gl": "cn",
+            "tbs": tbs,
+            "num": max_results,
+        }
+        search = GoogleSearch(params)
+        response = search.get_dict()
+        logger.debug(
+            "[SerpAPI/Google] 响应 keys: %s, organic_results: %d",
+            list(response.keys()),
+            len(response.get('organic_results', [])),
+        )
+        results = self._parse_search_response(response, "Google", max_results)
+        return results, response
+
+    def _search_baidu(
+        self, query: str, api_key: str, max_results: int
+    ) -> tuple:
+        """使用百度引擎搜索（中文股票信息覆盖面更广），返回 (results_list, raw_response_dict)"""
+        from serpapi import GoogleSearch
+
+        params = {
+            "engine": "baidu",
+            "q": query,
+            "api_key": api_key,
+            "num": max_results,
+        }
+        search = GoogleSearch(params)
+        response = search.get_dict()
+        logger.debug(
+            "[SerpAPI/Baidu] 响应 keys: %s, organic_results: %d",
+            list(response.keys()),
+            len(response.get('organic_results', [])),
+        )
+        results = self._parse_baidu_response(response, max_results)
+        return results, response
+
+    def _parse_search_response(
+        self, response: dict, engine_label: str, max_results: int
+    ) -> list:
+        """解析通用搜索响应（Google/Bing 等），返回 SearchResult 列表"""
+        results = []
+
+        # 1. Knowledge Graph
+        kg = response.get('knowledge_graph', {})
+        if kg:
+            title = kg.get('title', '知识图谱')
+            desc = kg.get('description', '')
+            details = []
+            for key in ['type', 'founded', 'headquarters', 'employees', 'ceo']:
+                val = kg.get(key)
+                if val:
+                    details.append(f"{key}: {val}")
+            snippet = f"{desc}\n" + " | ".join(details) if details else desc
+            results.append(SearchResult(
+                title=f"[知识图谱] {title}",
+                snippet=snippet,
+                url=kg.get('source', {}).get('link', ''),
+                source=f"{engine_label} Knowledge Graph"
+            ))
+
+        # 2. Answer Box
+        ab = response.get('answer_box', {})
+        if ab:
+            ab_title = ab.get('title', '精选回答')
+            ab_snippet = ""
+            if ab.get('type') == 'finance_results':
+                stock = ab.get('stock', '')
+                price = ab.get('price', '')
+                currency = ab.get('currency', '')
+                movement = ab.get('price_movement', {})
+                mv_val = movement.get('percentage', 0)
+                mv_dir = movement.get('movement', '')
+                ab_title = f"[行情卡片] {stock}"
+                ab_snippet = f"价格: {price} {currency}\n涨跌: {mv_dir} {mv_val}%"
+                if 'table' in ab:
+                    table_data = []
+                    for row in ab['table']:
+                        if 'name' in row and 'value' in row:
+                            table_data.append(f"{row['name']}: {row['value']}")
+                    if table_data:
+                        ab_snippet += "\n" + "; ".join(table_data)
+            elif 'snippet' in ab:
+                ab_snippet = ab.get('snippet', '')
+                list_items = ab.get('list', [])
+                if list_items:
+                    ab_snippet += "\n" + "\n".join([f"- {item}" for item in list_items])
+            elif 'answer' in ab:
+                ab_snippet = ab.get('answer', '')
+            if ab_snippet:
+                results.append(SearchResult(
+                    title=f"[精选回答] {ab_title}",
+                    snippet=ab_snippet,
+                    url=ab.get('link', '') or ab.get('displayed_link', ''),
+                    source=f"{engine_label} Answer Box"
+                ))
+
+        # 3. Related Questions
+        rqs = response.get('related_questions', [])
+        for rq in rqs[:3]:
+            question = rq.get('question', '')
+            snippet = rq.get('snippet', '')
+            link = rq.get('link', '')
+            if question and snippet:
+                results.append(SearchResult(
+                    title=f"[相关问题] {question}",
+                    snippet=snippet,
+                    url=link,
+                    source=f"{engine_label} Related Questions"
+                ))
+
+        # 4. Organic Results
+        organic_results = response.get('organic_results', [])
+        organic_content_fetch_attempts = 0
+        for rank, item in enumerate(organic_results[:max_results]):
+            link = item.get('link', '')
+            rich_extensions = self._extract_rich_snippet_extensions(item)
+            snippet = self._build_organic_snippet(item, rich_extensions=rich_extensions)
+
+            if self._should_fetch_organic_content(
+                link=link,
+                snippet=snippet,
+                rank=rank,
+                fetched_count=organic_content_fetch_attempts,
+                has_structured_summary=bool(rich_extensions),
+            ):
+                organic_content_fetch_attempts += 1
+                try:
+                    fetched_content = fetch_url_content(
+                        link,
+                        timeout=self._ORGANIC_CONTENT_FETCH_TIMEOUT,
+                    )
+                    if fetched_content:
+                        snippet = self._merge_organic_snippet_with_content(
+                            snippet,
+                            fetched_content,
+                        )
+                except Exception as e:
+                    logger.debug(f"[SerpAPI] Fetch content failed: {e}")
+
+            results.append(SearchResult(
+                title=item.get('title', ''),
+                snippet=snippet[:1000],
+                url=link,
+                source=item.get('source', self._extract_domain(link)),
+                published_date=item.get('date'),
+            ))
+
+        return results
+
+    def _parse_baidu_response(
+        self, response: dict, max_results: int
+    ) -> list:
+        """解析百度搜索响应，提取有机搜索结果"""
+        results = []
+        organic_results = response.get('organic_results', [])
+        for item in organic_results[:max_results]:
+            link = item.get('link', '')
+            snippet = item.get('snippet', '') or item.get('about', '') or ''
+            title = item.get('title', '')
+            source = self._extract_domain(link) or '百度'
+            results.append(SearchResult(
+                title=title,
+                snippet=snippet[:1000],
+                url=link,
+                source=f"Baidu ({source})",
+                published_date=item.get('date'),
+            ))
+        return results
     
     @staticmethod
     def _extract_domain(url: str) -> str:
@@ -2115,12 +2189,13 @@ class SearchService:
     """
     
     # 增强搜索关键词模板（A股 中文）
+    # 优化方向：更具体的信息检索关键词，提升搜索引擎命中率
     ENHANCED_SEARCH_KEYWORDS = [
-        "{name} 股票 今日 股价",
-        "{name} {code} 最新 行情 走势",
-        "{name} 股票 分析 走势图",
-        "{name} K线 技术分析",
-        "{name} {code} 涨跌 成交量",
+        "{name} {code} 最新消息",
+        "{name} 股票 新闻 公告",
+        "{name} {code} 股价 行情",
+        "{name} 股票 分析 研报",
+        "{name} {code} 涨跌 成交量 资金流向",
     ]
 
     # 增强搜索关键词模板（港股/美股 英文）

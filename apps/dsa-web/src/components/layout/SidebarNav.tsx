@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
-import { BarChart3, Bell, Brain, Home, LogOut, MessageSquareQuote, Search, Settings2, Sparkles, Target, TrendingUp, Zap } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  BarChart3, Bell, Brain, Home, LogOut, MessageSquareQuote, Search, Settings2, Sparkles,
+  Target, TrendingUp, Zap,
+  Map,
+} from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { ALPHASIFT_CONFIG_CHANGED_EVENT, SYSTEM_CONFIG_CHANGED_EVENT, alphasiftApi } from '../../api/alphasift';
 import { useAuth } from '../../contexts/AuthContext';
@@ -24,19 +28,19 @@ type NavItem = {
   badge?: 'completion';
 };
 
-const NAV_ITEMS: NavItem[] = [
+const TOP_LEVEL_ITEMS: NavItem[] = [
   { key: 'home', label: '首页', to: '/', icon: Home, exact: true },
   { key: 'chat', label: '问股', to: '/chat', icon: MessageSquareQuote, badge: 'completion' },
   { key: 'screening', label: '选股', to: '/screening', icon: Search },
-  // 注意：原「持仓标的」功能已从一级菜单移除；持仓管理可通过「打板助手 → 持仓明细」tab 或
-  // 「综合推荐 → 动态仓位管理」面板访问。
   { key: 'backtest', label: '回测', to: '/backtest', icon: BarChart3 },
-  { key: 'backtest-optimization', label: '回测优化', to: '/backtest/optimization', icon: Sparkles },
   { key: 'seal-plate', label: '打板', to: '/seal-plate', icon: Zap },
   { key: 'deep-analysis', label: '深度分析', to: '/deep-analysis', icon: Sparkles },
-  { key: 'recommendation-tracking', label: '推荐追踪', to: '/recommendation-tracking', icon: Target },
-  { key: 'strategy-optimizer', label: '策略优化', to: '/strategy-optimizer', icon: TrendingUp },
+  { key: 'recommendation-system', label: '推荐系统', to: '/recommendation/market-trend', icon: Brain },
+  { key: 'recommendation-tracking', label: '追踪', to: '/recommendation-tracking', icon: Target },
+  { key: 'strategy-optimizer', label: '优化', to: '/strategy-optimizer', icon: TrendingUp },
   { key: 'comprehensive', label: '综合推荐', to: '/comprehensive', icon: Brain },
+
+  { key: 'sector-heatmap', label: '热力图', to: '/sector-heatmap', icon: Map },
   { key: 'alerts', label: '告警', to: '/alerts', icon: Bell },
   { key: 'settings', label: '设置', to: '/settings', icon: Settings2 },
 ];
@@ -74,66 +78,75 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ collapsed = false, onNav
     };
   }, []);
 
-  const navItems = showAlphaSiftNav ? NAV_ITEMS : NAV_ITEMS.filter((item) => item.key !== 'screening');
+  const navItems = showAlphaSiftNav
+    ? TOP_LEVEL_ITEMS
+    : TOP_LEVEL_ITEMS.filter((item) => item.key !== 'screening');
+
+  const renderNavLink = (item: NavItem) => {
+    const { key, label, to, icon: Icon, exact, badge } = item;
+    return (
+      <NavLink
+        key={key}
+        to={to}
+        end={exact}
+        onClick={onNavigate}
+        aria-label={label}
+        className={({ isActive }: { isActive: boolean }) =>
+          cn(
+            'group relative flex items-center gap-3 border-y border-x-0 text-sm transition-all',
+            'h-[var(--nav-item-height)] min-h-[2.75rem]',
+            collapsed ? 'justify-center px-0' : 'px-[var(--nav-item-padding-x)]',
+            isActive
+              ? 'border-[var(--nav-active-border)] bg-[var(--nav-active-bg)] text-[hsl(var(--primary))] font-medium'
+              : 'border-transparent text-secondary-text hover:bg-[var(--nav-hover-bg)] hover:text-foreground'
+          )
+        }
+      >
+        {({ isActive }: { isActive: boolean }) => (
+          <>
+            {isActive && (
+              <motion.div
+                layoutId="activeIndicator"
+                className="absolute top-0 bottom-0 left-0 w-[var(--nav-indicator-width)] bg-[var(--nav-indicator-bg)] sidebar-active-indicator"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
+              />
+            )}
+            <Icon className={cn('h-5 w-5 shrink-0', collapsed ? 'mx-auto' : 'ml-1', isActive ? 'text-[var(--nav-icon-active)]' : 'text-current')} />
+            {!collapsed ? <span className="truncate">{label}</span> : <span className="sidebar-nav-label truncate">{label}</span>}
+            {badge === 'completion' && completionBadge ? (
+              <StatusDot
+                tone="info"
+                data-testid="chat-completion-badge"
+                className={cn(
+                  'absolute right-3 border-2 border-background shadow-[0_0_10px_var(--nav-indicator-shadow)]',
+                  collapsed ? 'right-2 top-2' : ''
+                )}
+                aria-label="问股有新消息"
+              />
+            ) : null}
+          </>
+        )}
+      </NavLink>
+    );
+  };
 
   return (
     <div className="flex h-full flex-col">
       <div className={cn('mb-4 flex items-center gap-2 px-1', collapsed ? 'justify-center' : '')}>
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-gradient text-[hsl(var(--primary-foreground))] shadow-[0_12px_28px_var(--nav-brand-shadow)]">
-          <BarChart3 className="h-5 w-5" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-gradient text-[hsl(var(--primary-foreground))] shadow-[0_12px_28px_var(--nav-brand-shadow)] shrink-0">
+          <BarChart3 className="h-6 w-6" />
         </div>
-        {!collapsed ? (
+        {collapsed ? (
+          <p className="sidebar-brand-text min-w-0 truncate text-sm font-semibold text-foreground">DSA</p>
+        ) : (
           <p className="min-w-0 truncate text-sm font-semibold text-foreground">DSA</p>
-        ) : null}
+        )}
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1.5" aria-label="主导航">
-        {navItems.map(({ key, label, to, icon: Icon, exact, badge }) => (
-          <NavLink
-            key={key}
-            to={to}
-            end={exact}
-            onClick={onNavigate}
-            aria-label={label}
-            className={({ isActive }: { isActive: boolean }) =>
-              cn(
-                'group relative flex items-center gap-3 border-y border-x-0 text-sm transition-all',
-                'h-[var(--nav-item-height)]',
-                collapsed ? 'justify-center px-0' : 'px-[var(--nav-item-padding-x)]',
-                isActive
-                  ? 'border-[var(--nav-active-border)] bg-[var(--nav-active-bg)] text-[hsl(var(--primary))] font-medium'
-                  : 'border-transparent text-secondary-text hover:bg-[var(--nav-hover-bg)] hover:text-foreground'
-              )
-            }
-          >
-            {({ isActive }: { isActive: boolean }) => (
-              <>
-                {isActive && (
-                  <motion.div 
-                    layoutId="activeIndicator"
-                    className="absolute top-0 bottom-0 left-0 w-[var(--nav-indicator-width)] bg-[var(--nav-indicator-bg)] shadow-[0_0_10px_var(--nav-indicator-shadow)]"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.2 }}
-                  />
-                )}
-                <Icon className={cn('ml-1 h-5 w-5 shrink-0', isActive ? 'text-[var(--nav-icon-active)]' : 'text-current')} />
-                {!collapsed ? <span className="truncate">{label}</span> : null}
-                {badge === 'completion' && completionBadge ? (
-                  <StatusDot
-                    tone="info"
-                    data-testid="chat-completion-badge"
-                    className={cn(
-                      'absolute right-3 border-2 border-background shadow-[0_0_10px_var(--nav-indicator-shadow)]',
-                      collapsed ? 'right-2 top-2' : ''
-                    )}
-                    aria-label="问股有新消息"
-                  />
-                ) : null}
-              </>
-            )}
-          </NavLink>
-        ))}
+      <nav className="flex flex-1 flex-col gap-1.5 overflow-y-auto" aria-label="主导航">
+        {navItems.map((item) => renderNavLink(item))}
       </nav>
 
       <div className="mt-4 mb-2">

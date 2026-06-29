@@ -1,14 +1,16 @@
 import type React from 'react';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { BarChart3, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Clock, MessageSquareQuote, Play, PlusCircle, Search, SlidersHorizontal } from 'lucide-react';
+import { BarChart3, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Clock, Filter, Layers, MessageSquareQuote, Play, PlusCircle, Search, SlidersHorizontal, TrendingUp, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   alphasiftApi,
+  getStrategyNameCn,
   type AlphaSiftCandidate,
   type AlphaSiftScreenResponse,
   type AlphaSiftStrategy,
     type ScreeningRecordDetail,
   type ScreeningRecordItem,
+    type ScreeningRunResponse,
 } from '../api/alphasift';
 import { AppPage, Button, Drawer, InlineAlert, WatchlistButton } from '../components/common';
 import FactorPipelineSummaryCard from '../components/factorPipeline/FactorPipelineSummaryCard';
@@ -205,6 +207,9 @@ const StockScreeningPage: React.FC = () => {
   const [factorPipelineError, setFactorPipelineError] = useState('');
   const [selectedFactorPipeline, setSelectedFactorPipeline] = useState<FactorPipelineSummary | null>(null);
   const [latestFactorPipeline, setLatestFactorPipeline] = useState<FactorPipelineSummary | null>(null);
+  // Batch run state
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchResult, setBatchResult] = useState<ScreeningRunResponse | null>(null);
   // History detail state
   const [historyDetail, setHistoryDetail] = useState<ScreeningRecordDetail | null>(null);
   const [historyDetailLoadingRecordId, setHistoryDetailLoadingRecordId] = useState<number | null>(null);
@@ -401,6 +406,28 @@ const StockScreeningPage: React.FC = () => {
     }
   };
 
+  /** 一键运行所有策略 */
+  const handleRunAll = async (notifyFeishu: boolean) => {
+    setBatchRunning(true);
+    setError('');
+    setBatchResult(null);
+    try {
+      const result = await alphasiftApi.runBatch({
+        market,
+        maxResults,
+        autoBacktest: true,
+        notifyFeishu,
+      });
+      setBatchResult(result);
+      // Refresh records after batch run
+      void loadRecords(0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '批量选股失败');
+    } finally {
+      setBatchRunning(false);
+    }
+  };
+
   return (
     <AppPage className="max-w-6xl space-y-6 pb-12 pt-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -589,6 +616,30 @@ const StockScreeningPage: React.FC = () => {
           >
             <Play className="h-4 w-4" />
             运行选股
+          </Button>
+
+          <Button
+            className="h-11 min-w-44"
+            variant="secondary"
+            isLoading={batchRunning}
+            loadingText="批量筛选中..."
+            disabled={!enabled || batchRunning || loading}
+            onClick={() => void handleRunAll(false)}
+          >
+            <Zap className="h-4 w-4" />
+            一键运行全部策略
+          </Button>
+
+          <Button
+            className="h-11"
+            variant="outline"
+            isLoading={batchRunning}
+            loadingText="筛选中..."
+            disabled={!enabled || batchRunning || loading}
+            onClick={() => void handleRunAll(true)}
+          >
+            <Zap className="h-4 w-4" />
+            全部策略→飞书
           </Button>
         </div>
       </section>
@@ -827,6 +878,78 @@ const StockScreeningPage: React.FC = () => {
         )}
       </section>
 
+      {/* ===== 批量运行结果 ===== */}
+      {batchResult ? (
+        <section className="rounded-2xl border border-success/40 bg-card/95 p-4 shadow-soft-card">
+          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Zap className="h-4 w-4 text-success" />
+            全部策略运行完成
+            <span className="ml-2 rounded-full bg-surface px-2 py-0.5 text-xs text-secondary-text">
+              📅 {batchResult.screeningDate}
+            </span>
+          </div>
+
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-border bg-surface p-3 text-center">
+              <p className="text-xs text-secondary-text">策略总数</p>
+              <p className="mt-1 text-lg font-bold text-foreground">{batchResult.totalStrategies}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-3 text-center">
+              <p className="text-xs text-secondary-text">✅ 成功</p>
+              <p className="mt-1 text-lg font-bold text-success">{batchResult.completedStrategies}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-3 text-center">
+              <p className="text-xs text-secondary-text">❌ 失败</p>
+              <p className="mt-1 text-lg font-bold text-warning">{batchResult.failedStrategies}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-3 text-center">
+              <p className="text-xs text-secondary-text">🎯 候选 / 去重</p>
+              <p className="mt-1 text-lg font-bold text-cyan">
+                {batchResult.totalCandidates} / {batchResult.uniqueCodes}
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-border">
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-surface text-left text-xs text-secondary-text">
+                <tr>
+                  <th className="px-4 py-2 font-semibold">策略</th>
+                  <th className="px-4 py-2 font-semibold">状态</th>
+                  <th className="px-4 py-2 font-semibold">候选数</th>
+                  <th className="px-4 py-2 font-semibold">候选股票</th>
+                </tr>
+              </thead>
+              <tbody>
+                {batchResult.strategies.map((sr) => (
+                  <tr key={sr.strategy} className="border-t border-border">
+                    <td className="px-4 py-2 font-medium text-foreground">
+                      {getStrategyNameCn(sr.strategy)}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`rounded-lg px-2 py-0.5 text-xs font-semibold ${sr.status === 'completed' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+                        {sr.status === 'completed' ? '完成' : '失败'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 font-mono text-cyan">{sr.candidateCount}</td>
+                    <td className="px-4 py-2 text-xs text-secondary-text">
+                      {sr.candidateCodes?.slice(0, 5).join('、') || '-'}
+                      {(sr.candidateCodes?.length ?? 0) > 5 ? '...' : ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {batchResult.autoBacktest ? (
+            <div className="mt-3 text-xs text-secondary-text">
+              回测：{batchResult.autoBacktest.status === 'completed' ? '✅ 完成' : `⚠️ ${batchResult.autoBacktest.error || batchResult.autoBacktest.status}`}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       {/* ===== 历史选股记录 ===== */}
       <section className="rounded-2xl border border-border bg-card/95 p-4 shadow-soft-card">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -874,7 +997,7 @@ const StockScreeningPage: React.FC = () => {
                     >
                       <td className="px-4 py-3 font-mono text-xs text-secondary-text">{record.id}</td>
                       <td className="px-4 py-3 text-foreground">{record.screeningDate || '-'}</td>
-                      <td className="px-4 py-3 font-medium text-foreground">{record.strategy}</td>
+                      <td className="px-4 py-3 font-medium text-foreground">{getStrategyNameCn(record.strategy)}</td>
                       <td className="px-4 py-3 text-secondary-text">{record.market}</td>
                       <td className="px-4 py-3 font-mono text-cyan">{record.candidateCount}</td>
                       <td className="px-4 py-3">
@@ -984,207 +1107,669 @@ const StockScreeningPage: React.FC = () => {
         {historyDetail ? (
           <div className="space-y-4">
             {/* 记录概要 */}
-            <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card p-4 text-sm">
-              <div>
-                <span className="text-secondary-text">策略：</span>
-                <span className="ml-2 font-semibold text-foreground">{historyDetail.strategy}</span>
-              </div>
-              <div>
-                <span className="text-secondary-text">市场：</span>
-                <span className="ml-2 font-semibold text-foreground">{historyDetail.market}</span>
-              </div>
-              <div>
-                <span className="text-secondary-text">候选数：</span>
-                <span className="ml-2 font-semibold text-cyan">{historyDetail.candidateCount}</span>
-              </div>
-              <div>
-                <span className="text-secondary-text">状态：</span>
-                <span className="ml-2">
-                  <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
-                    historyDetail.status === 'completed'
-                      ? 'bg-success/10 text-success'
-                      : 'bg-warning/10 text-warning'
-                  }`}>
-                    {historyDetail.status === 'completed' ? '完成' : '失败'}
-                  </span>
-                </span>
-              </div>
-              {historyDetail.durationSeconds != null && (
-                <div>
-                  <span className="text-secondary-text">耗时：</span>
-                  <span className="ml-2 font-mono text-secondary-text">{historyDetail.durationSeconds.toFixed(1)}s</span>
+            <div className="space-y-3">
+              {/* 基础信息卡片 */}
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                  <span className="text-xs text-secondary-text">策略</span>
+                  <p className="mt-0.5 font-semibold text-foreground">{getStrategyNameCn(historyDetail.strategy)}</p>
                 </div>
-              )}
-              {historyDetail.errorMessage && (
-                <div className="col-span-2">
-                  <span className="text-danger">错误：</span>
-                  <span className="ml-2 text-danger">{historyDetail.errorMessage}</span>
+                <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                  <span className="text-xs text-secondary-text">市场</span>
+                  <p className="mt-0.5 font-semibold text-foreground">{historyDetail.market}</p>
                 </div>
-              )}
-            </div>
-
-            {/* 候选股票列表 */}
-            {historyDetail.candidates.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-surface/70 px-5 py-10 text-center">
-                <p className="text-sm text-secondary-text">该记录暂无候选股票</p>
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-xl border border-border">
-                <table className="w-full min-w-[800px] border-collapse text-sm">
-                  <thead className="bg-surface text-left text-xs text-secondary-text">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">#</th>
-                      <th className="px-4 py-3 font-semibold">代码</th>
-                      <th className="px-4 py-3 font-semibold">名称</th>
-                      <th className="px-4 py-3 font-semibold">行业</th>
-                      <th className="px-4 py-3 font-semibold">综合分</th>
-                      <th className="px-4 py-3 font-semibold">LLM分</th>
-                      <th className="px-4 py-3 font-semibold">风险</th>
-                      <th className="px-4 py-3 font-semibold">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historyDetail.candidates.map((item) => (
-                      <tr
-                        key={item.id}
-                        className="border-t border-border transition-colors hover:bg-hover/50"
-                      >
-                        <td className="px-4 py-3 text-secondary-text">{item.rank}</td>
-                        <td className="px-4 py-3 font-mono font-semibold text-foreground">{item.code}</td>
-                        <td className="px-4 py-3 font-semibold text-foreground">{item.name || '-'}</td>
-                        <td className="px-4 py-3 text-secondary-text">{item.industry || '-'}</td>
-                        <td className="px-4 py-3 font-bold text-cyan">
-                          {item.score != null && !Number.isNaN(item.score) ? Number(item.score).toFixed(2) : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-secondary-text">
-                          {item.llmScore != null && !Number.isNaN(item.llmScore) ? Number(item.llmScore).toFixed(2) : '-'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="rounded-lg bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
-                            {item.riskLevel || 'unknown'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            className="text-sm font-semibold text-cyan transition-colors hover:text-foreground"
-                            type="button"
-                            onClick={() => {
-                              // Show expanded detail in-place
-                              setExpandedCodeHistory(item.code);
-                            }}
-                          >
-                            {expandedCodeHistory === item.code ? '收起' : '展开'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        ) : null}
-      </Drawer>
-
-      {/* 历史记录候选详情展开行 */}
-      {expandedCodeHistory && historyDetail ? (() => {
-        const item = historyDetail.candidates.find((c) => c.code === expandedCodeHistory);
-        if (!item) return null;
-        const factors = Object.entries(item.factorScores || {})
-          .filter(([, value]) => typeof value === 'number')
-          .sort((a, b) => Number(b[1]) - Number(a[1]))
-          .slice(0, 6);
-        return (
-          <div className="rounded-xl border border-border bg-card/60 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">
-                {item.name || item.code} 详细分析
-              </h3>
-              <button
-                className="text-xs text-secondary-text hover:text-foreground"
-                type="button"
-                onClick={() => setExpandedCodeHistory(null)}
-              >
-                收起
-              </button>
-            </div>
-            <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs font-semibold text-secondary-text">推荐理由</p>
-                  <p className="mt-1 text-sm leading-6 text-foreground">{item.reason || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-secondary-text">LLM 判断</p>
-                  <p className="mt-1 text-sm leading-6 text-foreground">
-                    {item.llmThesis || item.reason || '暂无 LLM 判断'}
-                  </p>
-                  <p className="mt-1 text-xs text-secondary-text">
-                    板块 {item.llmSector || '-'} · 主题 {item.llmTheme || '-'} · 置信度{' '}
-                    {item.llmConfidence != null && !Number.isNaN(item.llmConfidence)
-                      ? `${(Number(item.llmConfidence) * 100).toFixed(0)}%`
-                      : '-'}
+                <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                  <span className="text-xs text-secondary-text">状态</span>
+                  <p className="mt-0.5">
+                    <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
+                      historyDetail.status === 'completed'
+                        ? 'bg-success/10 text-success'
+                        : 'bg-warning/10 text-warning'
+                    }`}>
+                      {historyDetail.status === 'completed' ? '完成' : '失败'}
+                    </span>
                   </p>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-secondary-text">风险标签</p>
-                  <p className="mt-1 text-sm text-foreground">
-                    {([...(item.riskFlags || []), ...(item.llmRisks || [])]).length
-                      ? [...(item.riskFlags || []), ...(item.llmRisks || [])].join('，')
-                      : '无'}
+                <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                  <span className="text-xs text-secondary-text">耗时</span>
+                  <p className="mt-0.5 font-mono font-semibold text-foreground">
+                    {historyDetail.durationSeconds != null ? `${historyDetail.durationSeconds.toFixed(1)}s` : '-'}
                   </p>
                 </div>
-                {(item.llmCatalysts?.length || item.llmWatchItems?.length) && (
-                  <div>
-                    <p className="text-xs font-semibold text-secondary-text">催化因素</p>
-                    <p className="mt-1 text-sm text-foreground">
-                      {item.llmCatalysts?.length ? item.llmCatalysts.join('，') : '无'}
-                    </p>
+                {historyDetail.runId && (
+                  <div className="col-span-2 rounded-lg border border-border bg-surface/50 px-3 py-2">
+                    <span className="text-xs text-secondary-text">Run ID</span>
+                    <p className="mt-0.5 font-mono text-xs text-secondary-text truncate">{historyDetail.runId}</p>
                   </div>
                 )}
               </div>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs font-semibold text-secondary-text">主要因子</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {factors.length > 0 ? (
-                      factors.map(([key, value]) => (
-                        <div key={key} className="rounded-lg border border-border bg-surface px-3 py-2">
-                          <span className="block text-xs text-secondary-text">{key}</span>
-                          <span className="text-sm font-semibold text-foreground">
-                            {typeof value === 'number' ? value.toFixed(2) : '-'}
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-sm text-secondary-text">无因子明细</span>
-                    )}
+
+              {/* 筛选流水线统计 */}
+              <div className="rounded-xl border border-border bg-card p-4">
+                <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                  <Filter className="h-4 w-4 text-cyan" />
+                  筛选流水线
+                </h3>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 text-center">
+                    <div className="rounded-lg border border-cyan/20 bg-cyan/5 px-3 py-2">
+                      <span className="block text-xs text-secondary-text">全市场快照</span>
+                      <span className="text-lg font-bold text-cyan">{historyDetail.snapshotCount ?? '-'}</span>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-secondary-text">价格信息</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-secondary-text">价格：</span>
-                      <span className="font-semibold">
-                        {item.price != null && !Number.isNaN(item.price) ? Number(item.price).toFixed(2) : '-'}
+                  <div className="flex items-center text-secondary-text">
+                    <ChevronRight className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 text-center">
+                    <div className="rounded-lg border border-cyan/20 bg-cyan/5 px-3 py-2">
+                      <span className="block text-xs text-secondary-text">因子过滤后</span>
+                      <span className="text-lg font-bold text-cyan">{historyDetail.afterFilterCount ?? '-'}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center text-secondary-text">
+                    <ChevronRight className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 text-center">
+                    <div className={`rounded-lg border px-3 py-2 ${historyDetail.llmRanked ? 'border-cyan/20 bg-cyan/5' : 'border-border bg-surface/50'}`}>
+                      <span className="block text-xs text-secondary-text">LLM 重排</span>
+                      <span className={`text-lg font-bold ${historyDetail.llmRanked ? 'text-cyan' : 'text-secondary-text'}`}>
+                        {historyDetail.llmRanked ? '✓' : '✗'}
                       </span>
                     </div>
+                  </div>
+                  <div className="flex items-center text-secondary-text">
+                    <ChevronRight className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 text-center">
+                    <div className="rounded-lg border border-cyan/20 bg-cyan/5 px-3 py-2">
+                      <span className="block text-xs text-secondary-text">最终候选</span>
+                      <span className="text-lg font-bold text-cyan">{historyDetail.candidateCount}</span>
+                    </div>
+                  </div>
+                </div>
+                {historyDetail.snapshotCount != null && historyDetail.afterFilterCount != null && (
+                  <div className="mt-3 text-xs text-secondary-text">
+                    过滤通过率：{historyDetail.snapshotCount > 0
+                      ? `${((historyDetail.afterFilterCount / historyDetail.snapshotCount) * 100).toFixed(2)}%`
+                      : '-'}
+                    {historyDetail.llmCoverage != null && (
+                      <span className="ml-4">LLM 覆盖率：{formatPercent(historyDetail.llmCoverage)}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 错误与告警 */}
+              {historyDetail.errorMessage && (
+                <div className="rounded-lg border border-danger/20 bg-danger/5 px-3 py-2">
+                  <span className="text-xs font-semibold text-danger">错误</span>
+                  <p className="mt-1 text-sm text-danger">{historyDetail.errorMessage}</p>
+                </div>
+              )}
+              {historyDetail.warnings && historyDetail.warnings.length > 0 && (
+                <div className="rounded-lg border border-warning/20 bg-warning/5 px-3 py-2">
+                  <span className="text-xs font-semibold text-warning">警告 ({historyDetail.warnings.length})</span>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm text-warning">
+                    {historyDetail.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                  </ul>
+                </div>
+              )}
+              {historyDetail.sourceErrors && historyDetail.sourceErrors.length > 0 && (
+                <div className="rounded-lg border border-danger/20 bg-danger/5 px-3 py-2">
+                  <span className="text-xs font-semibold text-danger">数据源错误 ({historyDetail.sourceErrors.length})</span>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm text-danger">
+                    {historyDetail.sourceErrors.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                </div>
+              )}
+              {historyDetail.executionLogs && (
+                <details className="rounded-lg border border-border bg-surface/50">
+                  <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-secondary-text hover:text-foreground">
+                    📋 执行日志 ({historyDetail.executionLogs.length} 字符)
+                  </summary>
+                  <pre className="max-h-64 overflow-auto p-3 text-xs leading-5 text-secondary-text">
+                    {historyDetail.executionLogs}
+                  </pre>
+                </details>
+              )}
+            </div>
+
+            {/* LLM 分析区 */}
+            {(historyDetail.llmMarketView || historyDetail.llmSelectionLogic || historyDetail.llmPortfolioRisk) && (
+              <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+                <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                  <MessageSquareQuote className="h-4 w-4 text-cyan" />
+                  LLM 分析
+                  {historyDetail.llmRanked && (
+                    <span className="rounded-full bg-cyan/10 px-2 py-0.5 text-xs text-cyan">已启用</span>
+                  )}
+                </h3>
+                <div className="grid gap-3 lg:grid-cols-3">
+                  {historyDetail.llmMarketView && (
+                    <div className="rounded-lg border border-border bg-surface/50 p-3">
+                      <p className="text-xs font-semibold text-secondary-text">市场观点</p>
+                      <p className="mt-1.5 text-sm leading-6 text-foreground">{historyDetail.llmMarketView}</p>
+                    </div>
+                  )}
+                  {historyDetail.llmSelectionLogic && (
+                    <div className="rounded-lg border border-border bg-surface/50 p-3">
+                      <p className="text-xs font-semibold text-secondary-text">选股逻辑</p>
+                      <p className="mt-1.5 text-sm leading-6 text-foreground">{historyDetail.llmSelectionLogic}</p>
+                    </div>
+                  )}
+                  {historyDetail.llmPortfolioRisk && (
+                    <div className="rounded-lg border border-border bg-surface/50 p-3">
+                      <p className="text-xs font-semibold text-secondary-text">组合风险</p>
+                      <p className="mt-1.5 text-sm leading-6 text-foreground">{historyDetail.llmPortfolioRisk}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 回测数据区 */}
+            {(historyDetail.backtestSummary || (historyDetail.backtestResults && historyDetail.backtestResults.length > 0)) && (
+              <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+                <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                  <TrendingUp className="h-4 w-4 text-cyan" />
+                  回测数据
+                  {historyDetail.backtestResults && historyDetail.backtestResults.length > 0 && (
+                    <span className="rounded-full bg-cyan/10 px-2 py-0.5 text-xs text-cyan">
+                      {historyDetail.backtestResults.length} 条记录
+                    </span>
+                  )}
+                </h3>
+                {historyDetail.backtestSummary && (
+                  <div className="grid grid-cols-2 gap-2 text-sm lg:grid-cols-4">
+                    {historyDetail.backtestSummary.avgAnnualReturn != null && (
+                      <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                        <span className="block text-xs text-secondary-text">平均年化收益</span>
+                        <span className="text-sm font-semibold text-success">
+                          {(Number(historyDetail.backtestSummary.avgAnnualReturn) * 100).toFixed(2)}%
+                        </span>
+                      </div>
+                    )}
+                    {historyDetail.backtestSummary.avgMaxDrawdown != null && (
+                      <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                        <span className="block text-xs text-secondary-text">平均最大回撤</span>
+                        <span className="text-sm font-semibold text-warning">
+                          {(Number(historyDetail.backtestSummary.avgMaxDrawdown) * 100).toFixed(2)}%
+                        </span>
+                      </div>
+                    )}
+                    {historyDetail.backtestSummary.avgSharpe != null && (
+                      <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                        <span className="block text-xs text-secondary-text">平均夏普比</span>
+                        <span className="text-sm font-semibold text-foreground">
+                          {Number(historyDetail.backtestSummary.avgSharpe).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    {historyDetail.backtestSummary.avgWinRate != null && (
+                      <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                        <span className="block text-xs text-secondary-text">平均胜率</span>
+                        <span className="text-sm font-semibold text-foreground">
+                          {(Number(historyDetail.backtestSummary.avgWinRate) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {historyDetail.backtestResults && historyDetail.backtestResults.length > 0 && (
+                  <div className="overflow-x-auto rounded-lg border border-border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-surface text-left text-xs text-secondary-text">
+                        <tr>
+                          <th className="px-3 py-2 font-semibold">周期</th>
+                          <th className="px-3 py-2 font-semibold">总收益</th>
+                          <th className="px-3 py-2 font-semibold">年化收益</th>
+                          <th className="px-3 py-2 font-semibold">最大回撤</th>
+                          <th className="px-3 py-2 font-semibold">夏普比</th>
+                          <th className="px-3 py-2 font-semibold">胜率</th>
+                          <th className="px-3 py-2 font-semibold">Calmar</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {historyDetail.backtestResults.map((bt, idx) => {
+                          const annualRet = bt.annualReturn != null ? Number(bt.annualReturn) : 0;
+                          const maxDd = bt.maxDrawdown != null ? Math.abs(Number(bt.maxDrawdown)) : null;
+                          const calmar = maxDd != null && maxDd > 0 ? (annualRet / maxDd).toFixed(2) : '-';
+                          return (
+                            <tr key={idx} className="border-t border-border transition-colors hover:bg-hover/30">
+                              <td className="px-3 py-2.5 font-medium text-foreground">{bt.period || `#${idx + 1}`}</td>
+                              <td className="px-3 py-2.5 font-mono">
+                                <span className={bt.totalReturn != null && Number(bt.totalReturn) >= 0 ? 'text-success' : 'text-danger'}>
+                                  {bt.totalReturn != null ? `${(Number(bt.totalReturn) * 100).toFixed(2)}%` : '-'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 font-mono">
+                                <span className={annualRet >= 0 ? 'text-success' : 'text-danger'}>
+                                  {bt.annualReturn != null ? `${(annualRet * 100).toFixed(2)}%` : '-'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 font-mono text-warning">
+                                {bt.maxDrawdown != null ? `${(Number(bt.maxDrawdown) * 100).toFixed(2)}%` : '-'}
+                              </td>
+                              <td className="px-3 py-2.5 font-mono text-foreground">
+                                {bt.sharpeRatio != null ? Number(bt.sharpeRatio).toFixed(2) : '-'}
+                              </td>
+                              <td className="px-3 py-2.5 font-mono text-foreground">
+                                {bt.winRate != null ? `${(Number(bt.winRate) * 100).toFixed(1)}%` : '-'}
+                              </td>
+                              <td className="px-3 py-2.5 font-mono text-foreground">{calmar}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 因子流水线概览 */}
+            {historyDetail.factorPipeline && (() => {
+              const fp = historyDetail.factorPipeline as Record<string, unknown>;
+              const training = fp.training as Record<string, unknown> | undefined;
+              const monitoring = fp.monitoring as Record<string, unknown> | undefined;
+              const factorFamily = fp.factor_family as Record<string, unknown> | undefined;
+              const topCandidates = fp.top_candidates as Array<Record<string, unknown>> | undefined;
+              return (
+                <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+                  <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                    <Layers className="h-4 w-4 text-cyan" />
+                    因子流水线概览
+                    <span className="rounded-full bg-cyan/10 px-2 py-0.5 text-xs text-cyan">
+                      {fp.backend as string || 'skeleton'}
+                    </span>
+                  </h3>
+
+                  {/* 流水线状态 */}
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                      <span className="text-xs text-secondary-text">状态</span>
+                      <p className="mt-0.5 font-semibold text-foreground">{fp.status as string || '-'}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                      <span className="text-xs text-secondary-text">候选数</span>
+                      <p className="mt-0.5 font-semibold text-foreground">{fp.candidate_count as number || 0}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                      <span className="text-xs text-secondary-text">最新策略</span>
+                      <p className="mt-0.5 font-semibold text-foreground truncate">{fp.latest_strategy as string || '-'}</p>
+                    </div>
+                  </div>
+
+                  {/* 训练信息 */}
+                  {training && Object.keys(training).length > 0 && (
                     <div>
-                      <span className="text-secondary-text">涨跌幅：</span>
-                      <span className="font-semibold">
-                        {item.changePct != null && !Number.isNaN(item.changePct)
-                          ? `${Number(item.changePct).toFixed(2)}%`
-                          : '-'}
-                      </span>
+                      <p className="mb-2 text-xs font-semibold text-secondary-text">训练信息</p>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        {Object.entries(training).map(([key, value]) => (
+                          <div key={key} className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                            <span className="text-xs text-secondary-text">{key}</span>
+                            <p className="mt-0.5 font-mono text-xs text-foreground truncate">
+                              {typeof value === 'object' ? JSON.stringify(value) : String(value ?? '-')}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 监控指标 */}
+                  {monitoring && Object.keys(monitoring).length > 0 && (
+                    <div>
+                      <p className="mb-2 text-xs font-semibold text-secondary-text">监控指标</p>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        {Object.entries(monitoring).map(([key, value]) => (
+                          <div key={key} className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                            <span className="text-xs text-secondary-text">{key}</span>
+                            <p className="mt-0.5 font-mono text-xs text-foreground truncate">
+                              {typeof value === 'object' ? JSON.stringify(value) : String(value ?? '-')}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 因子家族 */}
+                  {factorFamily && Object.keys(factorFamily).length > 0 && (
+                    <div>
+                      <p className="mb-2 text-xs font-semibold text-secondary-text">因子家族</p>
+                      <div className="grid gap-1.5">
+                        {Object.entries(factorFamily).map(([family, specs]) => {
+                          const items = Array.isArray(specs) ? specs : [];
+                          return (
+                            <div key={family} className="rounded-lg border border-border bg-surface/50 px-3 py-2">
+                              <span className="text-xs font-semibold text-cyan">{family}</span>
+                              <span className="ml-2 text-xs text-secondary-text">
+                                {items.length} 个因子
+                                {items.length > 0 && ` · ${items.slice(0, 5).map((s: Record<string, unknown>) => s.name || s.factor).filter(Boolean).join(', ')}${items.length > 5 ? '…' : ''}`}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Top Candidates */}
+                  {topCandidates && topCandidates.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-xs font-semibold text-secondary-text">
+                        Top {topCandidates.length} 候选（因子流水线）
+                      </p>
+                      <div className="grid gap-1.5">
+                        {topCandidates.map((c, i) => (
+                          <div key={i} className="flex items-center gap-2 rounded-lg border border-border bg-surface/50 px-3 py-1.5 text-xs">
+                            <span className="font-mono font-semibold text-foreground">{c.code as string || '-'}</span>
+                            <span className="text-foreground">{c.name as string || '-'}</span>
+                            {c.score != null && (
+                              <span className="ml-auto font-mono text-cyan">{Number(c.score).toFixed(2)}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 折叠的原始 JSON */}
+                  <details className="group">
+                    <summary className="cursor-pointer text-xs text-secondary-text hover:text-foreground">
+                      查看原始数据
+                    </summary>
+                    <pre className="mt-2 max-h-[30vh] overflow-auto rounded-lg border border-border bg-surface p-3 text-xs leading-5 text-secondary-text">
+                      {JSON.stringify(historyDetail.factorPipeline, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              );
+            })()}
+
+            {/* 候选股票列表 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                  <Zap className="h-4 w-4 text-cyan" />
+                  候选股票
+                  <span className="rounded-full bg-cyan/10 px-2 py-0.5 text-xs text-cyan">
+                    {historyDetail.candidates.length} 只
+                  </span>
+                </h3>
+                {historyDetail.candidates.length > 0 && (
+                  <span className="text-xs text-secondary-text">
+                    均分 {historyDetail.candidates.reduce((sum, c) => sum + (c.score ?? 0), 0) / historyDetail.candidates.length > 0
+                      ? (historyDetail.candidates.reduce((sum, c) => sum + (c.score ?? 0), 0) / historyDetail.candidates.length).toFixed(2)
+                      : '-'}
+                  </span>
+                )}
+              </div>
+              {historyDetail.candidates.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-surface/70 px-5 py-10 text-center">
+                  <p className="text-sm text-secondary-text">该记录暂无候选股票</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <table className="w-full min-w-[1100px] border-collapse text-sm">
+                    <thead className="bg-surface text-left text-xs text-secondary-text">
+                      <tr>
+                        <th className="px-3 py-3 font-semibold">#</th>
+                        <th className="px-3 py-3 font-semibold">代码</th>
+                        <th className="px-3 py-3 font-semibold">名称</th>
+                        <th className="px-3 py-3 font-semibold">行业</th>
+                        <th className="px-3 py-3 font-semibold">综合分</th>
+                        <th className="px-3 py-3 font-semibold">筛选分</th>
+                        <th className="px-3 py-3 font-semibold">LLM分</th>
+                        <th className="px-3 py-3 font-semibold">置信度</th>
+                        <th className="px-3 py-3 font-semibold">成交额</th>
+                        <th className="px-3 py-3 font-semibold">涨跌幅</th>
+                        <th className="px-3 py-3 font-semibold">风险</th>
+                        <th className="px-3 py-3 font-semibold">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyDetail.candidates.map((item) => (
+                        <tr
+                          key={item.id}
+                          className="border-t border-border transition-colors hover:bg-hover/50"
+                        >
+                          <td className="px-3 py-3 text-secondary-text font-mono">{item.rank}</td>
+                          <td className="px-3 py-3 font-mono font-semibold text-foreground">{item.code}</td>
+                          <td className="px-3 py-3 font-semibold text-foreground">{item.name || '-'}</td>
+                          <td className="px-3 py-3 text-secondary-text text-xs">{item.industry || '-'}</td>
+                          <td className="px-3 py-3 font-bold text-cyan">
+                            {item.score != null && !Number.isNaN(item.score) ? Number(item.score).toFixed(2) : '-'}
+                          </td>
+                          <td className="px-3 py-3 text-secondary-text">
+                            {item.screenScore != null && !Number.isNaN(item.screenScore) ? Number(item.screenScore).toFixed(2) : '-'}
+                          </td>
+                          <td className="px-3 py-3 text-secondary-text">
+                            {item.llmScore != null && !Number.isNaN(item.llmScore) ? Number(item.llmScore).toFixed(2) : '-'}
+                          </td>
+                          <td className="px-3 py-3">
+                            {item.llmConfidence != null && !Number.isNaN(item.llmConfidence) ? (
+                              <div className="flex items-center gap-1.5">
+                                <div className="h-1.5 w-12 overflow-hidden rounded-full bg-surface">
+                                  <div
+                                    className="h-full rounded-full bg-cyan transition-all"
+                                    style={{ width: `${Math.min(Number(item.llmConfidence) * 100, 100)}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs text-secondary-text">{formatPercent(item.llmConfidence)}</span>
+                              </div>
+                            ) : '-'}
+                          </td>
+                          <td className="px-3 py-3 font-mono text-xs text-secondary-text">{formatAmount(item.amount)}</td>
+                          <td className="px-3 py-3 font-mono text-xs">
+                            <span className={item.changePct != null && Number(item.changePct) >= 0 ? 'text-success' : 'text-danger'}>
+                              {item.changePct != null && !Number.isNaN(item.changePct)
+                                ? `${Number(item.changePct) >= 0 ? '+' : ''}${Number(item.changePct).toFixed(2)}%`
+                                : '-'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                              item.riskLevel === 'low' ? 'bg-success/10 text-success'
+                              : item.riskLevel === 'high' ? 'bg-danger/10 text-danger'
+                              : 'bg-warning/10 text-warning'
+                            }`}>
+                              {item.riskLevel || 'unknown'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <button
+                              className="text-sm font-semibold text-cyan transition-colors hover:text-foreground"
+                              type="button"
+                              onClick={() => {
+                                setExpandedCodeHistory(expandedCodeHistory === item.code ? null : item.code);
+                              }}
+                            >
+                              {expandedCodeHistory === item.code ? '收起' : '展开'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* 候选详情展开行 */}
+            {expandedCodeHistory && historyDetail ? (() => {
+            const item = historyDetail.candidates.find((c) => c.code === expandedCodeHistory);
+            if (!item) return null;
+            const factors = Object.entries(item.factorScores || {})
+              .filter(([, value]) => typeof value === 'number')
+              .sort((a, b) => Number(b[1]) - Number(a[1]));
+            const topFactors = factors.slice(0, 8);
+            return (
+              <div className="rounded-xl border-2 border-cyan/20 bg-card p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <span className="font-mono text-cyan">{item.code}</span>
+                    <span>{item.name || item.code}</span>
+                    <span className="rounded-full bg-cyan/10 px-2 py-0.5 text-xs text-cyan">#{item.rank}</span>
+                  </h3>
+                  <button
+                    className="text-xs text-secondary-text hover:text-foreground"
+                    type="button"
+                    onClick={() => setExpandedCodeHistory(null)}
+                  >
+                    收起
+                  </button>
+                </div>
+
+                {/* 评分进度条 */}
+                <div className="mb-4 grid grid-cols-4 gap-2">
+                  <div className="rounded-lg border border-border bg-surface/50 px-3 py-2 text-center">
+                    <span className="block text-xs text-secondary-text">综合分</span>
+                    <span className="text-lg font-bold text-cyan">{formatNumber(item.score)}</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-surface/50 px-3 py-2 text-center">
+                    <span className="block text-xs text-secondary-text">筛选分</span>
+                    <span className="text-lg font-bold text-foreground">{formatNumber(item.screenScore)}</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-surface/50 px-3 py-2 text-center">
+                    <span className="block text-xs text-secondary-text">LLM分</span>
+                    <span className="text-lg font-bold text-foreground">{formatNumber(item.llmScore)}</span>
+                  </div>
+                  <div className="rounded-lg border border-border bg-surface/50 px-3 py-2 text-center">
+                    <span className="block text-xs text-secondary-text">置信度</span>
+                    <span className="text-lg font-bold text-foreground">
+                      {item.llmConfidence != null ? `${(Number(item.llmConfidence) * 100).toFixed(0)}%` : '-'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+                  {/* 左栏：文本分析 */}
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold text-secondary-text">推荐理由</p>
+                      <p className="mt-1 text-sm leading-6 text-foreground whitespace-pre-wrap">{item.reason || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-secondary-text">LLM 判断</p>
+                      <p className="mt-1 text-sm leading-6 text-foreground whitespace-pre-wrap">
+                        {item.llmThesis || item.reason || '暂无 LLM 判断'}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-secondary-text">
+                        <span>板块：<span className="text-foreground">{item.llmSector || '-'}</span></span>
+                        <span>主题：<span className="text-foreground">{item.llmTheme || '-'}</span></span>
+                        <span>风格：<span className="text-foreground">{item.llmStyleFit || '-'}</span></span>
+                      </div>
+                    </div>
+                    {item.llmTags && item.llmTags.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-secondary-text">LLM 标签</p>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {item.llmTags.map((tag) => (
+                            <span key={tag} className="rounded-full bg-cyan/10 px-2 py-0.5 text-xs text-cyan">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs font-semibold text-secondary-text">风险标签</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {([...(item.riskFlags || []), ...(item.llmRisks || [])]).length
+                          ? [...(item.riskFlags || []), ...(item.llmRisks || [])].map((r) => (
+                            <span key={r} className="rounded-full bg-danger/10 px-2 py-0.5 text-xs text-danger">
+                              {r}
+                            </span>
+                          ))
+                          : <span className="text-xs text-secondary-text">无</span>}
+                      </div>
+                    </div>
+                    {item.llmCatalysts && item.llmCatalysts.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-secondary-text">催化因素</p>
+                        <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm text-foreground">
+                          {item.llmCatalysts.map((c, i) => <li key={i}>{c}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {item.llmWatchItems && item.llmWatchItems.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-secondary-text">关注事项</p>
+                        <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm text-foreground">
+                          {item.llmWatchItems.map((w, i) => <li key={i}>{w}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {item.llmInvalidators && item.llmInvalidators.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-secondary-text">失效条件</p>
+                        <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm text-foreground">
+                          {item.llmInvalidators.map((inv, i) => <li key={i}>{inv}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 右栏：因子与价格 */}
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold text-secondary-text">因子得分 ({factors.length})</p>
+                      {topFactors.length > 0 ? (
+                        <div className="mt-2 space-y-1.5">
+                          {topFactors.map(([key, value]) => {
+                            const numVal = typeof value === 'number' ? value : 0;
+                            const barWidth = Math.max(2, Math.min(100, Math.abs(numVal) * 50));
+                            return (
+                              <div key={key} className="flex items-center gap-2 text-xs">
+                                <span className="w-24 shrink-0 truncate text-secondary-text" title={key}>{key}</span>
+                                <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-surface">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${numVal >= 0 ? 'bg-cyan' : 'bg-danger'}`}
+                                    style={{ width: `${barWidth}%` }}
+                                  />
+                                </div>
+                                <span className="w-12 text-right font-mono text-foreground">{numVal.toFixed(2)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-sm text-secondary-text">无因子明细</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-secondary-text">价格信息</p>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                          <span className="block text-xs text-secondary-text">价格</span>
+                          <span className="text-sm font-semibold text-foreground">{formatNumber(item.price)}</span>
+                        </div>
+                        <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                          <span className="block text-xs text-secondary-text">涨跌幅</span>
+                          <span className={`text-sm font-semibold ${item.changePct != null && Number(item.changePct) >= 0 ? 'text-success' : 'text-danger'}`}>
+                            {item.changePct != null ? `${Number(item.changePct) >= 0 ? '+' : ''}${Number(item.changePct).toFixed(2)}%` : '-'}
+                          </span>
+                        </div>
+                        <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                          <span className="block text-xs text-secondary-text">成交额</span>
+                          <span className="text-sm font-semibold text-foreground">{formatAmount(item.amount)}</span>
+                        </div>
+                        <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                          <span className="block text-xs text-secondary-text">行业</span>
+                          <span className="text-sm font-semibold text-foreground">{item.industry || '-'}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            );
+          })() : null}
           </div>
-        );
-      })() : null}
+        ) : null}
+      </Drawer>
 
       {/* 因子介绍面板 */}
       <Drawer

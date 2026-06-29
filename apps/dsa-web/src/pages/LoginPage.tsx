@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState, useEffect } from 'react';
-import { motion, useMotionValue, useTransform, useSpring } from "motion/react";
+import { motion, useMotionValue, useTransform, useSpring } from "framer-motion";
 import { Lock, Loader2, Cpu, TrendingUp, Network, ShieldCheck } from "lucide-react";
 import { Button, Input, ParticleBackground } from '../components/common';
 import { useNavigate, useSearchParams } from 'react-router-dom';

@@ -2028,12 +2028,14 @@ class StockAnalysisPipeline:
         if hasattr(value, "to_dict"):
             try:
                 return value.to_dict()
-            except Exception:
+            except Exception as e:
+                logger.debug("to_dict() 转换失败: %s", e)
                 return None
         if hasattr(value, "__dict__"):
             try:
                 return dict(value.__dict__)
-            except Exception:
+            except Exception as e:
+                logger.debug("__dict__ 转换失败: %s", e)
                 return None
         return None
 

@@ -4,7 +4,7 @@ import { Check, Flame, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cn } from '../../utils/cn';
 
-type ThemeOption = 'light' | 'dark' | 'orange' | 'orange-dark' | 'system';
+type ThemeOption = 'light' | 'dark' | 'blue-dark' | 'orange' | 'orange-dark' | 'system';
 type ThemeToggleVariant = 'default' | 'nav';
 
 const THEME_OPTIONS: Array<{
@@ -12,8 +12,9 @@ const THEME_OPTIONS: Array<{
   label: string;
   icon: typeof Sun;
 }> = [
+  { value: 'dark', label: '暗色·青', icon: Moon },
+  { value: 'blue-dark', label: '暗色·蓝', icon: Monitor },
   { value: 'light', label: '浅色', icon: Sun },
-  { value: 'dark', label: '深色', icon: Moon },
   { value: 'orange', label: '橙色(浅)', icon: Flame },
   { value: 'orange-dark', label: '橙色(深)', icon: Flame },
   { value: 'system', label: '跟随系统', icon: Monitor },
@@ -24,7 +25,9 @@ function resolveThemeLabel(theme: string | undefined) {
     case 'light':
       return '浅色';
     case 'dark':
-      return '深色';
+      return '暗色·青';
+    case 'blue-dark':
+      return '暗色·蓝';
     case 'orange':
       return '橙色(浅)';
     case 'orange-dark':

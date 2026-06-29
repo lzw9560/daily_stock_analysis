@@ -428,6 +428,7 @@ class ScreeningRecord(Base):
     llm_coverage = Column(Text)
     warnings_json = Column(Text)
     source_errors_json = Column(Text)
+    execution_logs = Column(Text)
     created_at = Column(DateTime, default=datetime.now, index=True)
 
     __table_args__ = (
@@ -976,6 +977,8 @@ class RecommendationRecord(Base):
     - 当前价格(current_price)、状态(status)、偏差值(price_deviation_pct)
     - 平仓价格(close_price)、盈亏(profit_loss_pct)
     - 来源(source)、原始任务 ID(source_task_id)、推荐理由(reason)
+    - 新增: signal_type(信号类型), strategy_pattern(战法分类), confidence(置信度),
+      sectors(板块标签), sentiment_phase(情绪阶段), entry_method(买入方式)
     """
 
     __tablename__ = "recommendation_records"
@@ -1010,11 +1013,25 @@ class RecommendationRecord(Base):
     reason = Column(Text)
     notes = Column(Text)
 
+    # 交易信号增强字段
+    signal_type = Column(String(32), default="technical")  # technical / fundamental / sentiment / mixed
+    strategy_pattern = Column(String(64), default="")  # 首板/连板/低吸/N字/反包/突破/趋势
+    confidence = Column(Float, default=0.0)  # 置信度 0-100
+    entry_method = Column(String(32), default="market")  # seal_plate / low_suck / breakout / market
+    stop_loss = Column(Float)  # 止损价
+    take_profit = Column(Float)  # 止盈价
+    sectors = Column(String(256), default="")  # 板块标签，逗号分隔
+    sentiment_phase = Column(String(32), default="")  # 冰点/修复/分化/高潮/退潮
+    expected_hold_days = Column(Integer)  # 预计持仓天数
+    time_horizon = Column(String(32), default="")  # 日内/1-3天/1-2周/月度
+
     created_at = Column(DateTime, default=datetime.now, index=True)
 
     __table_args__ = (
         Index("ix_rec_code_date", "code", "trade_date"),
         Index("ix_rec_status_created", "status", "created_at"),
+        Index("ix_rec_signal_pattern", "signal", "strategy_pattern"),
+        Index("ix_rec_source_confidence", "source", "confidence"),
     )
 
 
@@ -1178,17 +1195,29 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 "Float": "FLOAT",
                 "DateTime": "DATETIME",
                 "Boolean": "BOOLEAN",
+                "Date": "DATE",
             }
 
             with self._engine.connect() as conn:
                 for col_name in sorted(missing):
                     col = table.columns[col_name]
-                    sql_type = _type_map.get(type(col.type).__name__, "VARCHAR")
+                    type_name = type(col.type).__name__
+                    sql_type = _type_map.get(type_name, "VARCHAR")
+                    # 兜底：如果 type_name 不在映射中，尝试从 type 本身获取
+                    if sql_type == "VARCHAR" and type_name not in _type_map:
+                        sql_type = str(col.type).upper() if col.type else "VARCHAR"
                     nullable = "NOT NULL" if not col.nullable else ""
                     default = ""
                     if col.default is not None:
                         raw = col.default.arg
-                        default = f"DEFAULT {raw() if callable(raw) else raw}"
+                        val = raw() if callable(raw) else raw
+                        if val is not None:
+                            if isinstance(val, str):
+                                default = f"DEFAULT '{val}'"
+                            elif isinstance(val, bool):
+                                default = f"DEFAULT {1 if val else 0}"
+                            else:
+                                default = f"DEFAULT {val}"
                     sql = f"ALTER TABLE {table.name} ADD COLUMN {col_name} {sql_type} {nullable} {default}".strip()
                     try:
                         conn.execute(text(sql))

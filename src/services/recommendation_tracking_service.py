@@ -40,8 +40,18 @@ class RecommendationTrackingService:
         source: str = "analysis",
         source_task_id: Optional[str] = None,
         reason: Optional[str] = None,
+        signal_type: str = "technical",
+        strategy_pattern: str = "",
+        confidence: float = 0.0,
+        entry_method: str = "market",
+        stop_loss: Optional[float] = None,
+        take_profit: Optional[float] = None,
+        sectors: str = "",
+        sentiment_phase: str = "",
+        expected_hold_days: Optional[int] = None,
+        time_horizon: str = "",
     ) -> Dict[str, Any]:
-        """创建推荐追踪记录."""
+        """创建推荐追踪记录（支持增强分类字段）."""
         record = self._repo.create(
             code=code,
             trade_date=trade_date,
@@ -53,8 +63,18 @@ class RecommendationTrackingService:
             source_task_id=source_task_id,
             reason=reason or "",
             status="active",
+            signal_type=signal_type,
+            strategy_pattern=strategy_pattern,
+            confidence=confidence,
+            entry_method=entry_method,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            sectors=sectors,
+            sentiment_phase=sentiment_phase,
+            expected_hold_days=expected_hold_days,
+            time_horizon=time_horizon,
         )
-        logger.info("推荐记录已创建: id=%s code=%s signal=%s", record.id, code, signal)
+        logger.info("推荐记录已创建: id=%s code=%s signal=%s strategy=%s", record.id, code, signal, strategy_pattern)
         return self._repo._to_dict(record)
 
     def get_record(self, record_id: int) -> Optional[Dict[str, Any]]:
@@ -341,3 +361,227 @@ class RecommendationTrackingService:
         parts.append("3. **持仓滚动**：定期更新当前价格，对偏差超过阈值的持仓及时评估是否需要平仓。")
 
         return "\n".join(parts)
+
+    # ── 共同点分析 ─────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _classify_board_by_code(code: str) -> str:
+        """根据股票代码前缀分类所属板块."""
+        code = str(code).zfill(6)
+        if code.startswith("688"):
+            return "科创板"
+        if code.startswith("300") or code.startswith("301"):
+            return "创业板"
+        if code.startswith("60"):
+            return "沪市主板"
+        if code.startswith("00"):
+            return "深市主板"
+        if code.startswith("4") or code.startswith("8") or code.startswith("9"):
+            return "北交所"
+        return "其他"
+
+    @staticmethod
+    def _classify_price_range(price: float) -> str:
+        """根据价格分类价格区间."""
+        if price <= 10:
+            return "低价股(≤10元)"
+        if price <= 30:
+            return "中价股(10-30元)"
+        if price <= 100:
+            return "高价股(30-100元)"
+        return "超高价股(>100元)"
+
+    @staticmethod
+    def _classify_time_window(trade_date: str, records_by_date: Dict[str, List]) -> str:
+        """将日期分类到时间窗口."""
+        from datetime import datetime, timedelta
+        try:
+            dt = datetime.strptime(trade_date, "%Y-%m-%d")
+            # 本周窗口
+            today = datetime.now()
+            week_ago = today - timedelta(days=7)
+            if dt >= week_ago:
+                return "近一周"
+            month_ago = today - timedelta(days=30)
+            if dt >= month_ago:
+                return "近一月"
+            # 按月分组
+            return dt.strftime("%Y年%m月")
+        except (ValueError, TypeError):
+            return "未知时间"
+
+    @staticmethod
+    def _extract_keywords_from_reasons(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """从推荐理由中提取高频关键词."""
+        # 预定义的金融/技术关键词库
+        keyword_bank = [
+            "突破", "放量", "均线", "金叉", "支撑", "回调", "反弹",
+            "成交量", "MACD", "RSI", "KDJ", "布林带", "趋势",
+            "涨停", "连板", "龙头", "资金流入", "主力", "北向资金",
+            "PE", "PB", "ROE", "净利润", "营收", "增长率", "估值",
+            "底部", "顶部", "超跌", "新高", "箱体", "震荡",
+            "5日线", "10日线", "20日线", "60日线", "年线",
+            "热点", "政策", "利好", "业绩", "分红",
+            "低吸", "追涨", "止损", "止盈", "仓位",
+            "T+0", "波段", "中长线", "短线", "日内",
+        ]
+        keyword_counts: Dict[str, int] = {}
+        for record in records:
+            reason = (record.get("reason") or "").strip()
+            if not reason:
+                continue
+            for kw in keyword_bank:
+                if kw in reason:
+                    keyword_counts[kw] = keyword_counts.get(kw, 0) + 1
+
+        # 取前 10 个高频关键词
+        sorted_kw = sorted(keyword_counts.items(), key=lambda x: (-x[1], x[0]))[:10]
+        return [
+            {
+                "key": f"kw_{kw}",
+                "label": kw,
+                "value": kw,
+                "count": cnt,
+                "category": "keyword",
+            }
+            for kw, cnt in sorted_kw
+        ]
+
+    def get_commonality(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        tag_filter: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """分析推荐记录间的共同特征.
+
+        从板块归属、信号方向、推荐来源、价格区间、时间窗口、
+        理由关键词六个维度挖掘共同点，输出分组标签.
+        """
+        # 获取所有记录用于分析（最多 500 条）
+        result = self._repo.list_records(
+            start_date=start_date,
+            end_date=end_date,
+            page=1,
+            limit=500,
+        )
+        records: List[Dict[str, Any]] = result.get("items", [])
+
+        if not records:
+            return {"total_analyzed": 0, "groups": []}
+
+        groups: List[Dict[str, Any]] = []
+        tag_id_counter = 0
+
+        def make_tag(key: str, label: str, value: str, count: int, category: str) -> Dict[str, Any]:
+            nonlocal tag_id_counter
+            tag_id_counter += 1
+            return {
+                "key": key,
+                "label": label,
+                "value": value,
+                "count": count,
+                "category": category,
+            }
+
+        # ── 1. 板块归属 ──
+        board_counts: Dict[str, int] = {}
+        for r in records:
+            board = self._classify_board_by_code(r["code"])
+            board_counts[board] = board_counts.get(board, 0) + 1
+        board_tags = [
+            make_tag(f"board_{b}", b, b, cnt, "board")
+            for b, cnt in sorted(board_counts.items(), key=lambda x: -x[1])
+        ]
+        groups.append({
+            "category": "board",
+            "category_label": "所属板块",
+            "tags": board_tags,
+        })
+
+        # ── 2. 信号方向 ──
+        signal_labels = {"buy": "看多", "sell": "看空", "hold": "观望"}
+        signal_counts: Dict[str, int] = {}
+        for r in records:
+            sig = r.get("signal", "buy")
+            signal_counts[sig] = signal_counts.get(sig, 0) + 1
+        signal_tags = [
+            make_tag(f"signal_{s}", signal_labels.get(s, s), s, cnt, "signal")
+            for s, cnt in sorted(signal_counts.items(), key=lambda x: -x[1])
+        ]
+        groups.append({
+            "category": "signal",
+            "category_label": "信号方向",
+            "tags": signal_tags,
+        })
+
+        # ── 3. 推荐来源 ──
+        source_labels = {
+            "analysis": "常规分析", "deep_analysis": "深度分析",
+            "seal_plate": "打板", "comprehensive": "综合推荐", "manual": "手动录入",
+        }
+        source_counts: Dict[str, int] = {}
+        for r in records:
+            src = r.get("source", "manual")
+            source_counts[src] = source_counts.get(src, 0) + 1
+        source_tags = [
+            make_tag(f"source_{s}", source_labels.get(s, s), s, cnt, "source")
+            for s, cnt in sorted(source_counts.items(), key=lambda x: -x[1])
+        ]
+        groups.append({
+            "category": "source",
+            "category_label": "推荐来源",
+            "tags": source_tags,
+        })
+
+        # ── 4. 价格区间 ──
+        price_counts: Dict[str, int] = {}
+        for r in records:
+            price = r.get("recommendation_price", 0) or 0
+            price_range = self._classify_price_range(price)
+            price_counts[price_range] = price_counts.get(price_range, 0) + 1
+        price_order = ["低价股(≤10元)", "中价股(10-30元)", "高价股(30-100元)", "超高价股(>100元)"]
+        price_tags = [
+            make_tag(f"price_{pr}", pr, pr, price_counts.get(pr, 0), "price_range")
+            for pr in price_order if price_counts.get(pr, 0) > 0
+        ]
+        groups.append({
+            "category": "price_range",
+            "category_label": "价格区间",
+            "tags": price_tags,
+        })
+
+        # ── 5. 时间窗口 ──
+        time_counts: Dict[str, int] = {}
+        for r in records:
+            td = r.get("trade_date", "")
+            tw = self._classify_time_window(td, {})
+            time_counts[tw] = time_counts.get(tw, 0) + 1
+        time_order = ["近一周", "近一月"]
+        time_tags = [
+            make_tag(f"time_{tw}", tw, tw, time_counts.get(tw, 0), "time_window")
+            for tw in time_order if time_counts.get(tw, 0) > 0
+        ]
+        # 添加月份标签
+        for tw, cnt in sorted(time_counts.items(), key=lambda x: -x[1]):
+            if tw not in time_order:
+                time_tags.append(make_tag(f"time_{tw}", tw, tw, cnt, "time_window"))
+        groups.append({
+            "category": "time_window",
+            "category_label": "时间窗口",
+            "tags": time_tags[:8],  # 最多展示 8 个时间标签
+        })
+
+        # ── 6. 理由关键词 ──
+        keyword_tags = self._extract_keywords_from_reasons(records)
+        if keyword_tags:
+            groups.append({
+                "category": "keyword",
+                "category_label": "理由关键词",
+                "tags": keyword_tags,
+            })
+
+        return {
+            "total_analyzed": len(records),
+            "groups": groups,
+        }

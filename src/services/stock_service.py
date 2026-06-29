@@ -156,7 +156,7 @@ class StockService:
         except ImportError:
             logger.warning("DataFetcherManager 未找到，返回空数据")
             return {"stock_code": stock_code, "period": period, "data": []}
-        except Exception as e:
+        except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
             logger.error(f"获取历史数据失败: {e}", exc_info=True)
             return {"stock_code": stock_code, "period": period, "data": []}
     

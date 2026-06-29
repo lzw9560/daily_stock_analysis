@@ -3,7 +3,8 @@ import {
   TrendingUp, TrendingDown, Activity, Target, Percent,
   Plus, Filter, XCircle, CheckCircle2, Loader2,
   Trash2, RefreshCw, BarChart3, Brain, Edit3,
-  AlertTriangle, Clock,
+  AlertTriangle, Clock, LayoutList, Columns3,
+  Eye, Zap, Shield, Compass, Thermometer,
 } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
@@ -21,7 +22,10 @@ import type {
   RecommendationRecord,
   RecommendationStats,
   SummaryResponse,
+  CommonalityGroup,
 } from '@/api/recommendationTracking';
+import { CommonalityTags } from '@/components/recommendation/CommonalityTags';
+import { BoardView } from '@/components/recommendation/BoardView';
 
 // ── 信号标签 ────────────────────────────────────────────────────────────────
 
@@ -63,6 +67,52 @@ function sourceLabel(source: string) {
     manual: '手动录入',
   };
   return map[source] || source;
+}
+
+function strategyLabel(pattern: string): string {
+  if (!pattern) return '-';
+  const map: Record<string, string> = {
+    '首板': '首板挖掘',
+    '连板': '连板接力',
+    '低吸': '低吸龙头',
+    'N字': 'N字反击',
+    '反包': '反包战法',
+    '突破': '平台突破',
+    '趋势': '趋势跟随',
+  };
+  return pattern.split('/').map(s => map[s.trim()] || s.trim()).join(' / ');
+}
+
+function entryMethodLabel(method: string): string {
+  const map: Record<string, string> = {
+    seal_plate: '打板',
+    low_suck: '低吸',
+    breakout: '突破',
+    market: '市价',
+    limit_order: '限价',
+  };
+  return map[method] || method;
+}
+
+function sentimentLabel(phase: string): string {
+  const map: Record<string, string> = {
+    '冰点': '❄️ 冰点',
+    '修复': '🌤️ 修复',
+    '分化': '⚡ 分化',
+    '高潮': '🔥 高潮',
+    '退潮': '🌊 退潮',
+  };
+  return map[phase] || phase;
+}
+
+function signalTypeLabel(st: string): string {
+  const map: Record<string, string> = {
+    technical: '技术面',
+    fundamental: '基本面',
+    sentiment: '情绪面',
+    mixed: '多维度',
+  };
+  return map[st] || st;
 }
 
 // ── 统计卡片 ────────────────────────────────────────────────────────────────
@@ -424,6 +474,196 @@ function CloseModal({
   );
 }
 
+// ── 详情弹窗 ────────────────────────────────────────────────────────────────
+
+function DetailModal({
+  open,
+  onClose,
+  record,
+}: {
+  open: boolean;
+  onClose: () => void;
+  record: RecommendationRecord | null;
+}) {
+  if (!open || !record) return null;
+
+  const profitColor = (record.profitLossPct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto bg-card border border-border/60 rounded-2xl shadow-2xl p-6">
+        {/* 头部 */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              record.signal === 'buy' ? 'bg-emerald-500/15' : record.signal === 'sell' ? 'bg-red-500/15' : 'bg-amber-500/15'
+            }`}>
+              {record.signal === 'buy' ? (
+                <TrendingUp className="h-5 w-5 text-emerald-400" />
+              ) : record.signal === 'sell' ? (
+                <TrendingDown className="h-5 w-5 text-red-400" />
+              ) : (
+                <Activity className="h-5 w-5 text-amber-400" />
+              )}
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-foreground">{record.code}</h3>
+              <p className="text-xs text-muted-foreground">{record.tradeDate}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* 状态标签行 */}
+        <div className="flex flex-wrap gap-2 mb-5">
+          <Badge
+            variant={record.status === 'active' ? 'success' : record.status === 'closed' ? 'info' : 'default'}
+          >
+            {record.status === 'active' ? '持仓中' : record.status === 'closed' ? '已平仓' : '已过期'}
+          </Badge>
+          {signalBadge(record.signal)}
+          <Badge variant="history">{sourceLabel(record.source)}</Badge>
+          {record.strategyPattern && (
+            <Badge variant="outline" className="border-[hsl(var(--primary))]/40 text-[hsl(var(--primary))]">
+              <Compass className="h-3 w-3 mr-1" />
+              {strategyLabel(record.strategyPattern)}
+            </Badge>
+          )}
+        </div>
+
+        {/* 价格信息 */}
+        <div className="bg-hover rounded-xl p-4 mb-4">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">价格信息</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground">推荐价格</p>
+              <p className="text-sm font-semibold text-foreground">{record.recommendationPrice}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">当前价格</p>
+              <p className={`text-sm font-semibold ${(record.priceDeviationPct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {record.currentPrice != null ? record.currentPrice : '-'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">价格偏差</p>
+              <p className={`text-sm font-semibold ${(record.priceDeviationPct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {record.priceDeviationPct != null ? `${record.priceDeviationPct >= 0 ? '+' : ''}${record.priceDeviationPct}%` : '-'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">止盈/止损</p>
+              <p className="text-sm font-semibold text-foreground">
+                {record.takeProfit != null ? <span className="text-emerald-400">+{record.takeProfit}</span> : '-'}
+                {' / '}
+                {record.stopLoss != null ? <span className="text-red-400">{record.stopLoss}</span> : '-'}
+              </p>
+            </div>
+            {record.status === 'closed' && (
+              <>
+                <div>
+                  <p className="text-xs text-muted-foreground">平仓价格</p>
+                  <p className="text-sm font-semibold text-foreground">{record.closePrice ?? '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">盈亏</p>
+                  <p className={`text-sm font-bold ${profitColor}`}>
+                    {record.profitLossPct != null ? `${record.profitLossPct >= 0 ? '+' : ''}${record.profitLossPct}%` : '-'}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* 策略信息 */}
+        <div className="bg-hover rounded-xl p-4 mb-4">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Zap className="h-3.5 w-3.5" />策略信息
+          </h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground">策略战法</p>
+              <p className="text-sm font-medium text-foreground">{strategyLabel(record.strategyPattern)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">信号类型</p>
+              <p className="text-sm font-medium text-foreground">{signalTypeLabel(record.signalType)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">买入方式</p>
+              <p className="text-sm font-medium text-foreground">{entryMethodLabel(record.entryMethod)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">置信度</p>
+              <div className="flex items-center gap-1.5">
+                <div className="flex-1 h-1.5 bg-border/50 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-[hsl(var(--primary))] transition-all"
+                    style={{ width: `${record.confidence}%` }}
+                  />
+                </div>
+                <span className="text-xs font-medium text-foreground tabular-nums">{record.confidence}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 情绪与持仓 */}
+        <div className="bg-hover rounded-xl p-4 mb-4">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Thermometer className="h-3.5 w-3.5" />情绪与持仓
+          </h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground">情绪阶段</p>
+              <p className="text-sm font-medium text-foreground">{sentimentLabel(record.sentimentPhase) || '-'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">时间周期</p>
+              <p className="text-sm font-medium text-foreground">{record.timeHorizon || '-'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">预计持仓天数</p>
+              <p className="text-sm font-medium text-foreground">{record.expectedHoldDays != null ? `${record.expectedHoldDays}天` : '-'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">所属板块</p>
+              <p className="text-sm font-medium text-foreground">{record.sectors || '-'}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 推荐理由 */}
+        <div className="bg-hover rounded-xl p-4 mb-4">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Shield className="h-3.5 w-3.5" />推荐理由
+          </h4>
+          <p className="text-sm text-secondary-text leading-relaxed">{record.reason || '暂无'}</p>
+        </div>
+
+        {/* 来源与时间 */}
+        <div className="text-xs text-muted-foreground space-y-1">
+          <div className="flex justify-between">
+            <span>来源任务ID</span>
+            <span className="text-foreground/70">{record.sourceTaskId || '-'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>创建时间</span>
+            <span className="text-foreground/70">{record.createdAt}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>更新时间</span>
+            <span className="text-foreground/70">{record.updatedAt}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 主页面 ───────────────────────────────────────────────────────────────────
 
 export default function RecommendationTrackingPage() {
@@ -434,6 +674,15 @@ export default function RecommendationTrackingPage() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // 视图模式
+  const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
+
+  // 共同点分析
+  const [commonalityGroups, setCommonalityGroups] = useState<CommonalityGroup[]>([]);
+  const [commonalityTotal, setCommonalityTotal] = useState(0);
+  const [commonalityLoading, setCommonalityLoading] = useState(false);
+  const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
 
   // 筛选
   const [filterCode, setFilterCode] = useState('');
@@ -462,6 +711,9 @@ export default function RecommendationTrackingPage() {
 
   // 自省总结展开
   const [showSummary, setShowSummary] = useState(false);
+
+  // 详情弹窗
+  const [detailRecord, setDetailRecord] = useState<RecommendationRecord | null>(null);
 
   const fetchRecords = useCallback(async () => {
     setLoading(true);
@@ -501,10 +753,27 @@ export default function RecommendationTrackingPage() {
     }
   }, [startDate, endDate]);
 
+  const fetchCommonality = useCallback(async () => {
+    setCommonalityLoading(true);
+    try {
+      const data = await recommendationTrackingApi.getCommonality(
+        startDate || undefined,
+        endDate || undefined,
+      );
+      setCommonalityGroups(data.groups);
+      setCommonalityTotal(data.totalAnalyzed);
+    } catch {
+      // ignore
+    } finally {
+      setCommonalityLoading(false);
+    }
+  }, [startDate, endDate]);
+
   useEffect(() => {
     fetchRecords();
     fetchStats();
-  }, [fetchRecords, fetchStats]);
+    fetchCommonality();
+  }, [fetchRecords, fetchStats, fetchCommonality]);
 
   // 新建/编辑
   const handleSave = async (data: {
@@ -603,9 +872,51 @@ export default function RecommendationTrackingPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
       <PageHeader
-        title="推荐追踪"
+        title="追踪"
         description="追踪历史推荐记录，回溯计算胜率，自动生成策略反思与优化建议"
+        actions={
+          <div className="flex items-center border border-border rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-[hsl(var(--primary))] text-primary-foreground'
+                  : 'bg-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <LayoutList className="h-3.5 w-3.5 inline mr-1" />
+              列表
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('board')}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                viewMode === 'board'
+                  ? 'bg-[hsl(var(--primary))] text-primary-foreground'
+                  : 'bg-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Columns3 className="h-3.5 w-3.5 inline mr-1" />
+              看板
+            </button>
+          </div>
+        }
       />
+
+      {/* 共同点分析 */}
+      <Card className="p-4">
+        <CommonalityTags
+          groups={commonalityGroups}
+          totalAnalyzed={commonalityTotal}
+          activeFilter={activeTagFilter}
+          onFilterChange={(key) => {
+            setActiveTagFilter(key);
+            setPage(1);
+          }}
+          loading={commonalityLoading}
+        />
+      </Card>
 
       {/* 统计面板 */}
       <StatsDashboard stats={stats} loading={statsLoading} />
@@ -667,8 +978,20 @@ export default function RecommendationTrackingPage() {
         </div>
       )}
 
-      {/* 记录列表 */}
-      {loading ? (
+      {/* 记录展示区域 */}
+      {viewMode === 'board' ? (
+        <BoardView
+          records={records}
+          loading={loading}
+          commonalityGroups={commonalityGroups}
+          activeTagFilter={activeTagFilter}
+          onUpdatePrice={handleUpdatePrice}
+          onClose={(r) => { setClosingRecord(r); setShowCloseModal(true); }}
+          onEdit={(r) => { setEditingRecord(r); setShowModal(true); }}
+          onDelete={(r) => { setDeleteConfirmId(r.id); }}
+          onDetail={(r) => setDetailRecord(r)}
+        />
+      ) : loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-[hsl(var(--primary))]" />
         </div>
@@ -683,7 +1006,7 @@ export default function RecommendationTrackingPage() {
           {records.map((r) => {
             const isConfirmingDelete = deleteConfirmId === r.id;
             return (
-              <Card key={r.id} className="transition-all hover:bg-hover/30">
+              <Card key={r.id} className="transition-all hover:bg-hover/30 cursor-pointer" onClick={() => setDetailRecord(r)}>
                 <div className="flex items-center gap-3">
                   <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
                     r.signal === 'buy' ? 'bg-emerald-500/15' : r.signal === 'sell' ? 'bg-red-500/15' : 'bg-amber-500/15'
@@ -708,6 +1031,12 @@ export default function RecommendationTrackingPage() {
                         {r.status === 'active' ? '持仓中' : r.status === 'closed' ? '已平仓' : '已过期'}
                       </Badge>
                       <Badge variant="history" size="sm">{sourceLabel(r.source)}</Badge>
+                      {r.strategyPattern && (
+                        <span className="text-xs text-[hsl(var(--primary))] bg-[hsl(var(--primary))]/8 px-1.5 py-0.5 rounded font-medium">
+                          <Compass className="h-3 w-3 inline mr-0.5" />
+                          {strategyLabel(r.strategyPattern)}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-1">
                       <span className="text-xs text-muted-foreground">
@@ -767,6 +1096,14 @@ export default function RecommendationTrackingPage() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      title="查看详情"
+                      onClick={() => setDetailRecord(r)}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       title="编辑"
                       onClick={() => { setEditingRecord(r); setShowModal(true); }}
                     >
@@ -799,8 +1136,8 @@ export default function RecommendationTrackingPage() {
         </div>
       )}
 
-      {/* 分页 */}
-      {totalPages > 1 && (
+      {/* 分页 - 仅列表视图 */}
+      {viewMode === 'list' && totalPages > 1 && (
         <div className="flex justify-center mt-6">
           <Pagination
             currentPage={page}
@@ -863,6 +1200,12 @@ export default function RecommendationTrackingPage() {
         onConfirm={handleClose}
         loading={closeLoading}
         record={closingRecord}
+      />
+
+      <DetailModal
+        open={detailRecord !== null}
+        onClose={() => setDetailRecord(null)}
+        record={detailRecord}
       />
     </div>
   );

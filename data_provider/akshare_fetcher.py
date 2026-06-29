@@ -1882,30 +1882,80 @@ class AkshareFetcher(BaseFetcher):
         获取行业板块涨跌榜
 
         数据源优先级：
-        1. 东财接口 (ak.stock_board_industry_name_em)
-        2. 新浪接口 (ak.stock_sector_spot)
+        1. 东财接口 (ak.stock_board_industry_name_em) — 字段最丰富
+        2. 新浪接口 (ak.stock_sector_spot) — 降级方案
+
+        返回字段（东财接口）：
+        - name: 板块名称
+        - change_pct: 涨跌幅(%)
+        - up_count: 上涨家数
+        - down_count: 下跌家数
+        - stock_count: 成分股总数 (up_count + down_count)
+        - leader_stocks: 领涨股列表 [{"name": "...", "code": "...", "change_pct": ...}]
+        - turnover_rate: 换手率(%)
+        - total_market_cap: 总市值
         """
         import akshare as ak
 
-        def _get_rank_top_n(df: pd.DataFrame, change_col: str, industry_name: str, n: int) -> Tuple[list, list]:
+        # 捕获静态方法引用供嵌套函数使用
+        safe_float = self._safe_float
+
+        def _build_sector_row(row, change_col: str, name_col: str, code_col: str = None,
+                              up_col: str = None, down_col: str = None,
+                              leader_col: str = None, leader_chg_col: str = None,
+                              turnover_col: str = None, mcap_col: str = None) -> dict:
+            """构建统一格式的板块数据 dict"""
+            item: Dict[str, Any] = {
+                'name': str(row[name_col]),
+                'change_pct': safe_float(row.get(change_col, 0)) or 0,
+            }
+            if code_col and code_col in row.index:
+                item['code'] = str(row[code_col])
+            # 上涨/下跌家数
+            up_val = safe_float(row.get(up_col)) or 0 if up_col and up_col in row.index else 0
+            down_val = safe_float(row.get(down_col)) or 0 if down_col and down_col in row.index else 0
+            item['up_count'] = int(up_val)
+            item['down_count'] = int(down_val)
+            item['stock_count'] = int(up_val + down_val) or 1
+            # 领涨股
+            leader_stocks = []
+            if leader_col and leader_col in row.index:
+                leader_name = str(row.get(leader_col, '') or '')
+                if leader_name:
+                    leader_chg = safe_float(row.get(leader_chg_col)) or 0 if leader_chg_col and leader_chg_col in row.index else 0
+                    leader_stocks.append({'name': leader_name, 'change_pct': leader_chg})
+            item['leader_stocks'] = leader_stocks
+            # 可选字段
+            if turnover_col and turnover_col in row.index:
+                item['turnover_rate'] = safe_float(row.get(turnover_col))
+            if mcap_col and mcap_col in row.index:
+                item['total_market_cap'] = safe_float(row.get(mcap_col))
+            return item
+
+        def _rank_and_split(df: pd.DataFrame, change_col: str, n: int,
+                            name_col: str, code_col: str = None,
+                            up_col: str = None, down_col: str = None,
+                            leader_col: str = None, leader_chg_col: str = None,
+                            turnover_col: str = None, mcap_col: str = None) -> Tuple[list, list]:
             df[change_col] = pd.to_numeric(df[change_col], errors='coerce')
             df = df.dropna(subset=[change_col])
-
-            # 涨幅前n
             top = df.nlargest(n, change_col)
+            bottom = df.nsmallest(n, change_col)
             top_sectors = [
-                {'name': row[industry_name], 'change_pct': row[change_col]}
+                _build_sector_row(row, change_col, name_col, code_col,
+                                  up_col, down_col, leader_col, leader_chg_col,
+                                  turnover_col, mcap_col)
                 for _, row in top.iterrows()
             ]
-
-            bottom = df.nsmallest(n, change_col)
             bottom_sectors = [
-                {'name': row[industry_name], 'change_pct': row[change_col]}
+                _build_sector_row(row, change_col, name_col, code_col,
+                                  up_col, down_col, leader_col, leader_chg_col,
+                                  turnover_col, mcap_col)
                 for _, row in bottom.iterrows()
             ]
             return top_sectors, bottom_sectors
-        
-        # 优先东财接口
+
+        # 优先东财接口 — 字段最丰富
         try:
             self._set_random_user_agent()
             self._enforce_rate_limit()
@@ -1913,14 +1963,19 @@ class AkshareFetcher(BaseFetcher):
             logger.info("[API调用] ak.stock_board_industry_name_em() 获取板块排行...")
             df = ak.stock_board_industry_name_em()
             if df is not None and not df.empty:
-                change_col = '涨跌幅'
-                name = '板块名称'
-                return _get_rank_top_n(df, change_col, name, n)
-            
+                # 东财接口字段：排名、板块名称、板块代码、最新价、涨跌额、涨跌幅、
+                # 总市值、换手率、上涨家数、下跌家数、领涨股票、领涨股票-涨跌幅
+                return _rank_and_split(
+                    df, change_col='涨跌幅', n=n,
+                    name_col='板块名称', code_col='板块代码',
+                    up_col='上涨家数', down_col='下跌家数',
+                    leader_col='领涨股票', leader_chg_col='领涨股票-涨跌幅',
+                    turnover_col='换手率', mcap_col='总市值',
+                )
         except Exception as e:
             logger.warning(f"[Akshare] 东财接口获取行业板块排行失败: {e}，尝试新浪接口")
 
-        # 东财失败后，尝试新浪接口
+        # 东财失败后，尝试新浪接口 — 字段较少
         try:
             self._set_random_user_agent()
             self._enforce_rate_limit()
@@ -1929,10 +1984,11 @@ class AkshareFetcher(BaseFetcher):
             df = ak.stock_sector_spot(indicator='行业')
             if df is None or df.empty:
                 return None
-            change_col = '涨跌幅'
-            name = '板块'
-            return _get_rank_top_n(df, change_col, name, n)
-        
+            # 新浪接口字段较少，只取基础字段
+            return _rank_and_split(
+                df, change_col='涨跌幅', n=n,
+                name_col='板块', code_col='代码',
+            )
         except Exception as e:
             logger.error(f"[Akshare] 新浪接口获取板块排行也失败: {e}")
             return None

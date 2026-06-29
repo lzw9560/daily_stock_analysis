@@ -904,7 +904,7 @@ class AnalysisTaskQueue:
             except RuntimeError as e:
                 # 事件循环已关闭
                 logger.debug(f"[TaskQueue] 广播事件跳过（循环已关闭）: {e}")
-            except Exception as e:
+            except (ConnectionError, TimeoutError) as e:
                 logger.warning(f"[TaskQueue] 广播事件失败: {e}")
     
     # ========== 清理方法 ==========

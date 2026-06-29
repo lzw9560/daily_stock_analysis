@@ -248,6 +248,36 @@ class RecommendationTrackingRepository:
                         "deviation_pct": round(deviation, 2),
                     })
 
+            # 按战法分类统计
+            by_strategy: Dict[str, Any] = {}
+            for r in closed_records:
+                pattern = (r.strategy_pattern or "unknown").strip() or "unknown"
+                if pattern not in by_strategy:
+                    by_strategy[pattern] = {"total": 0, "wins": 0, "total_pl": 0.0}
+                by_strategy[pattern]["total"] += 1
+                by_strategy[pattern]["total_pl"] += (r.profit_loss_pct or 0)
+                if (r.profit_loss_pct or 0) > 0:
+                    by_strategy[pattern]["wins"] += 1
+
+            for pattern, data in by_strategy.items():
+                data["win_rate"] = round(data["wins"] / data["total"] * 100, 1) if data["total"] > 0 else 0
+                data["avg_pl_pct"] = round(data["total_pl"] / data["total"], 2) if data["total"] > 0 else 0
+
+            # 按情绪阶段统计
+            by_sentiment: Dict[str, Any] = {}
+            for r in closed_records:
+                phase = (r.sentiment_phase or "unknown").strip() or "unknown"
+                if phase not in by_sentiment:
+                    by_sentiment[phase] = {"total": 0, "wins": 0, "total_pl": 0.0}
+                by_sentiment[phase]["total"] += 1
+                by_sentiment[phase]["total_pl"] += (r.profit_loss_pct or 0)
+                if (r.profit_loss_pct or 0) > 0:
+                    by_sentiment[phase]["wins"] += 1
+
+            for phase, data in by_sentiment.items():
+                data["win_rate"] = round(data["wins"] / data["total"] * 100, 1) if data["total"] > 0 else 0
+                data["avg_pl_pct"] = round(data["total_pl"] / data["total"], 2) if data["total"] > 0 else 0
+
             return {
                 "total_records": len(all_records),
                 "active_count": len(active_records),
@@ -264,6 +294,8 @@ class RecommendationTrackingRepository:
                 "total_pl_pct": round(total_pl, 2),
                 "by_signal": by_signal,
                 "by_source": by_source,
+                "by_strategy": by_strategy,
+                "by_sentiment": by_sentiment,
                 "active_deviation": active_deviation,
             }
 
@@ -291,4 +323,15 @@ class RecommendationTrackingRepository:
             "notes": record.notes or "",
             "created_at": record.created_at.isoformat() if record.created_at else "",
             "updated_at": record.updated_at.isoformat() if record.updated_at else "",
+            # 新增字段
+            "signal_type": record.signal_type or "technical",
+            "strategy_pattern": record.strategy_pattern or "",
+            "confidence": record.confidence or 0.0,
+            "entry_method": record.entry_method or "market",
+            "stop_loss": record.stop_loss,
+            "take_profit": record.take_profit,
+            "sectors": record.sectors or "",
+            "sentiment_phase": record.sentiment_phase or "",
+            "expected_hold_days": record.expected_hold_days,
+            "time_horizon": record.time_horizon or "",
         }

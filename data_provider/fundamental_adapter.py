@@ -530,3 +530,370 @@ class AkshareFundamentalAdapter:
         result["status"] = "ok"
         result["source_chain"].append(f"dragon_tiger:{source}")
         return result
+
+    # ── 北向资金 ────────────────────────────────────────────────────────
+
+    def get_north_bound_flow(self, top_n: int = 10) -> Dict[str, Any]:
+        """
+        北向资金汇总：沪股通+深股通当日净流入，以及个股北向持仓变化。
+
+        替代方案：ak.stock_hsgt_north_net_flow_in_em()（日级别汇总）
+                + ak.stock_hsgt_individual_north_net_flow_in_em()（个股级别）
+        若北向接口不可用，降级到融资融券余额变化。
+        """
+        result: Dict[str, Any] = {
+            "status": "not_supported",
+            "today_net_inflow": None,
+            "sh_net": None,
+            "sz_net": None,
+            "top_inflow_stocks": [],
+            "top_outflow_stocks": [],
+            "source_chain": [],
+            "errors": [],
+        }
+
+        # 北向汇总（沪股通+深股通）
+        agg_df, agg_source, agg_errors = self._call_df_candidates([
+            ("stock_hsgt_north_net_flow_in_em", {"symbol": "北上"}),
+            ("stock_hsgt_north_net_flow_in_em", {}),
+            ("stock_hsgt_north_flow_in_sina", {}),
+        ])
+        result["errors"].extend(agg_errors)
+
+        if agg_df is not None and not agg_df.empty:
+            agg_row = agg_df.iloc[-1] if len(agg_df) > 1 else agg_df.iloc[0]
+            sh_cols = [c for c in agg_df.columns if any(k in str(c) for k in ("沪股通", "沪", "shanghai"))]
+            sz_cols = [c for c in agg_df.columns if any(k in str(c) for k in ("深股通", "深", "shenzhen"))]
+            net_cols = [c for c in agg_df.columns if any(k in str(c) for k in ("净流入", "净额", "net"))]
+            date_cols = [c for c in agg_df.columns if any(k in str(c) for k in ("日期", "date", "时间"))]
+
+            sh_net = _safe_float(agg_row[sh_cols[0]]) if sh_cols else None
+            sz_net = _safe_float(agg_row[sz_cols[0]]) if sz_cols else None
+            total_net = _safe_float(agg_row[net_cols[0]]) if net_cols else None
+
+            if total_net is None and sh_net is not None and sz_net is not None:
+                total_net = round(sh_net + sz_net, 2)
+
+            trade_date = _safe_str(agg_row[date_cols[0]]) if date_cols else None
+            result["today_net_inflow"] = total_net
+            result["sh_net"] = sh_net
+            result["sz_net"] = sz_net
+            result["trade_date"] = trade_date
+            result["source_chain"].append(f"north_bound_agg:{agg_source}")
+
+        # 个股北向流入排行
+        ind_df, ind_source, ind_errors = self._call_df_candidates([
+            ("stock_hsgt_individual_north_net_flow_in_em", {"symbol": "沪股通"}),
+            ("stock_hsgt_individual_north_net_flow_in_em", {"symbol": "深股通"}),
+            ("stock_hsgt_individual_north_net_flow_in_em", {}),
+        ])
+        result["errors"].extend(ind_errors)
+
+        if ind_df is not None and not ind_df.empty:
+            name_col = next((c for c in ind_df.columns if any(k in str(c) for k in ("名称", "name", "股票"))), None)
+            code_col = next((c for c in ind_df.columns if any(k in str(c) for k in ("代码", "code", "symbol"))), None)
+            flow_col = next((c for c in ind_df.columns if any(k in str(c) for k in ("净流入", "净额", "net", "流入"))), None)
+
+            if flow_col and name_col:
+                ind_df[flow_col] = pd.to_numeric(ind_df[flow_col], errors="coerce")
+                ind_df = ind_df.dropna(subset=[flow_col])
+                top_flow = ind_df.nlargest(top_n, flow_col)
+                bottom_flow = ind_df.nsmallest(top_n, flow_col)
+
+                result["top_inflow_stocks"] = [
+                    {
+                        "name": _safe_str(r[name_col]),
+                        "code": _safe_str(r[code_col]) if code_col else "",
+                        "net_inflow": float(r[flow_col]) / 1e8,
+                    }
+                    for _, r in top_flow.iterrows()
+                ]
+                result["top_outflow_stocks"] = [
+                    {
+                        "name": _safe_str(r[name_col]),
+                        "code": _safe_str(r[code_col]) if code_col else "",
+                        "net_inflow": float(r[flow_col]) / 1e8,
+                    }
+                    for _, r in bottom_flow.iterrows()
+                ]
+                result["source_chain"].append(f"north_bound_ind:{ind_source}")
+
+        has_content = result["today_net_inflow"] is not None or bool(
+            result["top_inflow_stocks"] or result["top_outflow_stocks"]
+        )
+        result["status"] = "partial" if has_content else "not_supported"
+        return result
+
+    # ── 融资融券余额 ────────────────────────────────────────────────────
+
+    def get_margin_balance(self) -> Dict[str, Any]:
+        """
+        融资融券余额变化（替代北向实时数据）。
+
+        数据源：ak.stock_margin_detail_sse()（沪市）
+              + ak.stock_margin_ratio_pa_em()（融资融券余额）
+        """
+        result: Dict[str, Any] = {
+            "status": "not_supported",
+            "margin_balance": None,
+            "margin_change": None,
+            "short_balance": None,
+            "short_change": None,
+            "source_chain": [],
+            "errors": [],
+        }
+
+        df, source, errors = self._call_df_candidates([
+            ("stock_margin_detail_sse", {}),
+            ("stock_margin_ratio_pa_em", {}),
+            ("stock_margin_sse", {}),
+        ])
+        result["errors"].extend(errors)
+
+        if df is not None and not df.empty:
+            row = df.iloc[-1] if len(df) > 1 else df.iloc[0]
+
+            margin_cols = [c for c in df.columns if any(k in str(c) for k in ("融资余额", "融资", "margin"))]
+            margin_chg_cols = [c for c in df.columns if any(k in str(c) for k in ("融资变化", "融资买入", "变化"))]
+            short_cols = [c for c in df.columns if any(k in str(c) for k in ("融券", "short"))]
+
+            margin_bal = _safe_float(row[margin_cols[0]]) if margin_cols else None
+            margin_chg = _safe_float(row[margin_chg_cols[0]]) if margin_chg_cols else None
+            short_bal = _safe_float(row[short_cols[0]]) if short_cols else None
+
+            result["margin_balance"] = round(margin_bal / 1e8, 2) if margin_bal else None
+            result["margin_change"] = round(margin_chg / 1e8, 2) if margin_chg else None
+            result["short_balance"] = round(short_bal / 1e8, 2) if short_bal else None
+            result["source_chain"].append(f"margin:{source}")
+            result["status"] = "ok" if result["margin_balance"] else "partial"
+
+        return result
+
+    # ── 大宗交易统计 ────────────────────────────────────────────────────
+
+    def get_block_trade_stats(self, top_n: int = 10) -> Dict[str, Any]:
+        """
+        大宗交易统计（替代/补充龙虎榜）。
+
+        数据源：ak.stock_dzjy_mrmx()（大宗交易明细）
+              + ak.stock_dzjy_mrtj()（大宗交易统计）
+        """
+        result: Dict[str, Any] = {
+            "status": "not_supported",
+            "today_count": 0,
+            "total_amount": None,
+            "top_premium": [],
+            "top_discount": [],
+            "source_chain": [],
+            "errors": [],
+        }
+
+        # 大宗交易统计（汇总）
+        stat_df, stat_source, stat_errors = self._call_df_candidates([
+            ("stock_dzjy_mrtj", {}),
+        ])
+        result["errors"].extend(stat_errors)
+
+        if stat_df is not None and not stat_df.empty:
+            row = stat_df.iloc[0] if not stat_df.empty else None
+            if row is not None:
+                count_cols = [c for c in stat_df.columns if any(k in str(c) for k in ("笔数", "成交笔数", "count"))]
+                amt_cols = [c for c in stat_df.columns if any(k in str(c) for k in ("成交额", "金额", "amount"))]
+
+                result["today_count"] = int(_safe_float(row[count_cols[0]]) or 0) if count_cols else 0
+                result["total_amount"] = round((_safe_float(row[amt_cols[0]]) or 0) / 1e8, 2) if amt_cols else None
+                result["source_chain"].append(f"block_trade_stat:{stat_source}")
+
+        # 大宗交易明细（用于提取折溢价排行）
+        detail_df, detail_source, detail_errors = self._call_df_candidates([
+            ("stock_dzjy_mrmx", {"symbol": ""}),
+            ("stock_dzjy_mrmx", {}),
+        ])
+        result["errors"].extend(detail_errors)
+
+        if detail_df is not None and not detail_df.empty:
+            name_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("名称", "name", "证券"))), None)
+            code_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("代码", "code"))), None)
+            premium_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("溢价", "折价", "premium", "rate"))), None)
+            amt_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("成交额", "金额", "amount", "交易额"))), None)
+
+            if premium_col:
+                detail_df[premium_col] = pd.to_numeric(detail_df[premium_col], errors="coerce")
+                detail_df = detail_df.dropna(subset=[premium_col])
+
+                top_premium = detail_df.nlargest(top_n, premium_col)
+                top_discount = detail_df.nsmallest(top_n, premium_col)
+
+                result["top_premium"] = [
+                    {
+                        "name": _safe_str(r[name_col]) if name_col else "",
+                        "code": _safe_str(r[code_col]) if code_col else "",
+                        "premium_rate": round(float(r[premium_col]), 2),
+                        "amount": round(float(r[amt_col]) / 1e8, 2) if amt_col and _safe_float(r[amt_col]) else None,
+                    }
+                    for _, r in top_premium.iterrows()
+                ]
+                result["top_discount"] = [
+                    {
+                        "name": _safe_str(r[name_col]) if name_col else "",
+                        "code": _safe_str(r[code_col]) if code_col else "",
+                        "premium_rate": round(float(r[premium_col]), 2),
+                        "amount": round(float(r[amt_col]) / 1e8, 2) if amt_col and _safe_float(r[amt_col]) else None,
+                    }
+                    for _, r in top_discount.iterrows()
+                ]
+                result["source_chain"].append(f"block_trade_detail:{detail_source}")
+
+        has_content = result["today_count"] > 0 or bool(result["top_premium"] or result["top_discount"])
+        result["status"] = "partial" if has_content else "not_supported"
+        return result
+
+    # ── 机构调研动向 ────────────────────────────────────────────────────
+
+    def get_institution_research(self, top_n: int = 10) -> Dict[str, Any]:
+        """
+        机构调研动向统计。
+
+        数据源：ak.stock_jgdy_tj_em()（机构调研统计）
+        可作为龙虎榜的补充信号：机构密集调研往往先于股价变动。
+        """
+        result: Dict[str, Any] = {
+            "status": "not_supported",
+            "top_research_stocks": [],
+            "total_research_count": 0,
+            "source_chain": [],
+            "errors": [],
+        }
+
+        df, source, errors = self._call_df_candidates([
+            ("stock_jgdy_tj_em", {}),
+            ("stock_jgdx_tj_em", {}),
+            ("stock_jgcc_em", {}),
+        ])
+        result["errors"].extend(errors)
+
+        if df is not None and not df.empty:
+            name_col = next((c for c in df.columns if any(k in str(c) for k in ("名称", "name", "股票"))), None)
+            code_col = next((c for c in df.columns if any(k in str(c) for k in ("代码", "code", "symbol"))), None)
+            count_col = next((c for c in df.columns if any(k in str(c) for k in ("调研", "家数", "机构", "count", "次数"))), None)
+            date_col = next((c for c in df.columns if any(k in str(c) for k in ("日期", "date", "调研日期", "时间"))), None)
+
+            if name_col:
+                sort_col = count_col or name_col
+                try:
+                    if count_col:
+                        df[count_col] = pd.to_numeric(df[count_col], errors="coerce")
+                    df_sorted = df.sort_values(by=sort_col, ascending=False, na_position="last")
+                except Exception:
+                    df_sorted = df
+
+                result["total_research_count"] = len(df)
+                result["top_research_stocks"] = [
+                    {
+                        "name": _safe_str(r[name_col]),
+                        "code": _safe_str(r[code_col]) if code_col else "",
+                        "research_count": int(_safe_float(r[count_col]) or 0) if count_col and _safe_float(r[count_col]) else 1,
+                        "latest_date": _safe_str(r[date_col]) if date_col else None,
+                    }
+                    for _, r in df_sorted.head(top_n).iterrows()
+                ]
+                result["source_chain"].append(f"institution_research:{source}")
+                result["status"] = "partial" if result["top_research_stocks"] else "not_supported"
+
+        return result
+
+    # ── 龙虎榜明细扩展 ──────────────────────────────────────────────────
+
+    def get_dragon_tiger_detail(self, top_n: int = 10) -> Dict[str, Any]:
+        """
+        龙虎榜明细：每日上榜个股及席位买卖详情。
+
+        数据源：ak.stock_lhb_detail_em()（龙虎榜明细）
+              + ak.stock_lhb_jgmmtj_em()（机构买卖统计）
+        比 get_dragon_tiger_flag 更丰富，提取席位、买卖金额、机构净买等。
+        """
+        result: Dict[str, Any] = {
+            "status": "not_supported",
+            "list_date": None,
+            "entries": [],
+            "source_chain": [],
+            "errors": [],
+        }
+
+        # 龙虎榜明细
+        detail_df, detail_source, detail_errors = self._call_df_candidates([
+            ("stock_lhb_detail_em", {}),
+        ])
+        result["errors"].extend(detail_errors)
+
+        if detail_df is not None and not detail_df.empty:
+            name_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("名称", "name", "股票"))), None)
+            code_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("代码", "code"))), None)
+            chg_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("涨幅", "涨跌", "change", "pct"))), None)
+            buy_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("买入", "buy"))), None)
+            sell_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("卖出", "sell"))), None)
+            net_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("净买", "净额", "net"))), None)
+            date_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("日期", "date", "上榜日期"))), None)
+            reason_col = next((c for c in detail_df.columns if any(k in str(c) for k in ("原因", "理由", "reason"))), None)
+
+            trade_dates: List[str] = []
+            if date_col:
+                for v in detail_df[date_col].astype(str):
+                    d = _safe_str(v)
+                    if d:
+                        trade_dates.append(d)
+
+            if trade_dates:
+                from collections import Counter
+                date_counter = Counter(trade_dates)
+                if date_counter:
+                    result["list_date"] = date_counter.most_common(1)[0][0]
+
+            entries = []
+            for _, r in detail_df.head(top_n).iterrows():
+                entry: Dict[str, Any] = {
+                    "name": _safe_str(r[name_col]) if name_col else "",
+                    "code": _safe_str(r[code_col]) if code_col else "",
+                    "change_pct": round(_safe_float(r[chg_col]) or 0, 2) if chg_col else None,
+                    "buy_amount": round((_safe_float(r[buy_col]) or 0) / 1e8, 2) if buy_col else None,
+                    "sell_amount": round((_safe_float(r[sell_col]) or 0) / 1e8, 2) if sell_col else None,
+                    "net_amount": round((_safe_float(r[net_col]) or 0) / 1e8, 2) if net_col else None,
+                    "reason": _safe_str(r[reason_col]) if reason_col else "",
+                }
+                if entry.get("name") or entry.get("code"):
+                    entries.append(entry)
+
+            result["entries"] = entries
+            result["source_chain"].append(f"dragon_tiger_detail:{detail_source}")
+
+        # 机构买卖统计（补充机构席位视角）
+        inst_df, inst_source, inst_errors = self._call_df_candidates([
+            ("stock_lhb_jgmmtj_em", {}),
+        ])
+        result["errors"].extend(inst_errors)
+
+        if inst_df is not None and not inst_df.empty:
+            name_col = next((c for c in inst_df.columns if any(k in str(c) for k in ("名称", "name", "股票"))), None)
+            code_col = next((c for c in inst_df.columns if any(k in str(c) for k in ("代码", "code"))), None)
+            inst_buy = next((c for c in inst_df.columns if any(k in str(c) for k in ("机构买入", "机构净买"))), None)
+            inst_sell = next((c for c in inst_df.columns if any(k in str(c) for k in ("机构卖出"))), None)
+
+            inst_entries = []
+            for _, r in inst_df.head(top_n).iterrows():
+                ib = _safe_float(r[inst_buy]) if inst_buy else None
+                isell = _safe_float(r[inst_sell]) if inst_sell else None
+                inst_entries.append({
+                    "name": _safe_str(r[name_col]) if name_col else "",
+                    "code": _safe_str(r[code_col]) if code_col else "",
+                    "inst_buy": round(ib / 1e8, 2) if ib else None,
+                    "inst_sell": round(isell / 1e8, 2) if isell else None,
+                    "inst_net": round((ib or 0) - (isell or 0), 2) if ib or isell else None,
+                })
+
+            if inst_entries:
+                result["inst_entries"] = inst_entries
+                result["source_chain"].append(f"dragon_tiger_inst:{inst_source}")
+
+        has_content = bool(result["entries"]) or bool(result.get("inst_entries"))
+        result["status"] = "partial" if has_content else "not_supported"
+        return result

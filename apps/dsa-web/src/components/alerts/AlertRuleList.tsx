@@ -210,91 +210,103 @@ export const AlertRuleList: React.FC<AlertRuleListProps> = ({
           />
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
-            <thead className="border-b border-border/60 text-xs uppercase text-muted-text">
-              <tr>
-                <th className="px-3 py-2 font-medium">规则</th>
-                <th className="px-3 py-2 font-medium">目标</th>
-                <th className="px-3 py-2 font-medium">类型</th>
-                <th className="px-3 py-2 font-medium">参数</th>
-                <th className="px-3 py-2 font-medium">状态</th>
-                <th className="px-3 py-2 font-medium">冷却</th>
-                <th className="px-3 py-2 font-medium">更新时间</th>
-                <th className="px-3 py-2 text-right font-medium">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/40">
-              {rules.map((rule) => (
-                <tr key={rule.id} className="align-top">
-                  <td className="px-3 py-3">
-                    <div className="font-medium text-foreground">{rule.name}</div>
-                    <div className="mt-1 text-xs text-muted-text">来源：{rule.source}</div>
-                  </td>
-                  <td className="px-3 py-3 text-secondary-text">
-                    <div className="font-mono">{formatTarget(rule)}</div>
-                    <div className="mt-1 text-xs">{scopeLabel[rule.targetScope] ?? rule.targetScope}</div>
-                  </td>
-                  <td className="px-3 py-3">
-                    <div className="flex flex-col items-start gap-1">
-                      <Badge variant="info">{typeLabel[rule.alertType]}</Badge>
+        <div className="min-h-0 flex-1">
+          {/* 卡片式规则列表 */}
+          <div className="grid grid-cols-1 gap-3">
+            {rules.map((rule) => (
+              <div
+                key={rule.id}
+                className={`group rounded-xl border p-4 transition-all hover:shadow-md ${
+                  rule.enabled
+                    ? 'border-border/60 bg-card/60 hover:border-primary/20'
+                    : 'border-border/30 bg-muted/20 opacity-70'
+                }`}
+              >
+                {/* Header: Name + Status + Actions */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-medium text-sm truncate">{rule.name}</h3>
                       <Badge variant={rule.severity === 'critical' ? 'danger' : rule.severity === 'warning' ? 'warning' : 'default'}>
                         {severityLabel[rule.severity] ?? rule.severity}
                       </Badge>
+                      <Badge variant={rule.enabled ? 'success' : 'default'}>
+                        {rule.enabled ? '已启用' : '已停用'}
+                      </Badge>
+                      {isCoolingDown(rule) && (
+                        <Badge variant="warning" className="text-xs">冷却中</Badge>
+                      )}
                     </div>
-                  </td>
-                  <td className="px-3 py-3 text-secondary-text">{formatParameters(rule)}</td>
-                  <td className="px-3 py-3">
-                    <Badge variant={rule.enabled ? 'success' : 'default'}>
-                      {rule.enabled ? '已启用' : '已停用'}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-3 text-xs text-secondary-text">
-                    <div>{isCoolingDown(rule) ? '冷却中' : '未冷却'}</div>
-                    <div className="mt-1">{formatDateTime(rule.cooldownUntil)}</div>
-                    {hasChildTargetCooldown(rule) ? (
-                      <div className="mt-1 text-muted-text">子目标见触发历史</div>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-3 text-xs text-secondary-text">{formatDateTime(rule.updatedAt ?? rule.createdAt)}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="xsm"
-                        variant="outline"
-                        onClick={() => onTest(rule)}
-                        isLoading={isRuleActionBusy(rule, 'test')}
-                        loadingText="测试中"
-                        disabled={isRuleBusy(rule) && !isRuleActionBusy(rule, 'test')}
-                      >
-                        测试
-                      </Button>
-                      <Button
-                        size="xsm"
-                        variant={rule.enabled ? 'secondary' : 'primary'}
-                        onClick={() => onToggleEnabled(rule)}
-                        isLoading={isRuleActionBusy(rule, 'toggle')}
-                        loadingText={rule.enabled ? '停用中' : '启用中'}
-                        disabled={isRuleBusy(rule) && !isRuleActionBusy(rule, 'toggle')}
-                      >
-                        {rule.enabled ? '停用' : '启用'}
-                      </Button>
-                      <Button
-                        size="xsm"
-                        variant="danger-subtle"
-                        aria-label={`删除 ${rule.name}`}
-                        onClick={() => setPendingDelete(rule)}
-                        disabled={isRuleBusy(rule)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        删除
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      来源：{rule.source} · {formatTarget(rule)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Button
+                      size="xsm"
+                      variant="outline"
+                      onClick={() => onTest(rule)}
+                      isLoading={isRuleActionBusy(rule, 'test')}
+                      loadingText="测试中"
+                      disabled={isRuleBusy(rule) && !isRuleActionBusy(rule, 'test')}
+                      className="text-xs px-2 h-7"
+                    >
+                      测试
+                    </Button>
+                    <Button
+                      size="xsm"
+                      variant={rule.enabled ? 'secondary' : 'primary'}
+                      onClick={() => onToggleEnabled(rule)}
+                      isLoading={isRuleActionBusy(rule, 'toggle')}
+                      loadingText={rule.enabled ? '停用中' : '启用中'}
+                      disabled={isRuleBusy(rule) && !isRuleActionBusy(rule, 'toggle')}
+                      className="text-xs px-2 h-7"
+                    >
+                      {rule.enabled ? '停用' : '启用'}
+                    </Button>
+                    <Button
+                      size="xsm"
+                      variant="ghost"
+                      aria-label={`删除 ${rule.name}`}
+                      onClick={() => setPendingDelete(rule)}
+                      disabled={isRuleBusy(rule)}
+                      className="text-xs h-7 text-muted-foreground hover:text-danger"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Body: Type + Parameters + Info */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">类型</span>
+                    <Badge variant="info" className="mt-0.5 block w-fit">{typeLabel[rule.alertType]}</Badge>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">参数</span>
+                    <p className="mt-0.5 text-foreground font-mono truncate">{formatParameters(rule)}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">范围</span>
+                    <p className="mt-0.5 text-foreground">{scopeLabel[rule.targetScope] ?? rule.targetScope}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">更新时间</span>
+                    <p className="mt-0.5 text-foreground">{formatDateTime(rule.updatedAt ?? rule.createdAt)}</p>
+                  </div>
+                </div>
+
+                {/* Cooldown info */}
+                {isCoolingDown(rule) && (
+                  <div className="mt-2 pt-2 border-t border-border/30 text-xs text-warning">
+                    冷却至 {formatDateTime(rule.cooldownUntil)}
+                    {hasChildTargetCooldown(rule) ? ' · 子目标详情见触发历史' : ''}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

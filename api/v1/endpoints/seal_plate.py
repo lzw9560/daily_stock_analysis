@@ -11,8 +11,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import re
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Query
@@ -491,14 +495,12 @@ async def check_eight_standard(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/sentiment", response_model=SentimentResponse)
+@router.get("/sentiment", response_model=SentimentResponse, deprecated=True)
 async def get_sentiment_analysis(
     date: Optional[str] = Query(None, description="日期 YYYYMMDD")
 ):
     """
-    获取市场情绪周期分析
-
-    基于多维度指标计算市场情绪指数，并给出仓位建议。
+    [已废弃] 获取市场情绪周期分析。请使用 /api/v1/sentiment/sector-heatmap 获取完整的板块热力图和情绪数据。
     """
     try:
         sentiment_analyzer = SentimentAnalyzer()
@@ -2452,9 +2454,7 @@ async def get_stock_risk_analysis(
 
 # ============ 自选股 API ============
 
-import json
-import os
-from pathlib import Path
+
 
 WATCHLIST_FILE = Path(__file__).parent.parent.parent.parent / "watchlist.json"
 
@@ -2850,4 +2850,217 @@ async def get_recommendation_dates():
         return AvailableDatesResponse(dates=dates)
     except Exception as e:
         logger.error(f"获取可选日期失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ 综合推荐 API（从 comprehensive_recommend 合并） ============
+
+@router.get("/comprehensive")
+async def get_comprehensive_recommendations(
+    date: Optional[str] = Query(None, description="日期 YYYYMMDD，默认自动选择"),
+):
+    """
+    获取综合推荐仪表盘（10维分析）
+
+    一次性返回：买卖意愿、短中长期建议、板块轮动、风险评估、仓位管理等。
+    """
+    from src.seal_plate.date_utils import get_effective_date, get_label_for_date
+    from src.strategy.comprehensive_recommender import ComprehensiveRecommendationEngine
+
+    try:
+        effective_date = get_effective_date(date)
+        date_label = get_label_for_date(effective_date)
+
+        service = SealPlateService(config={'feishu_enabled': False})
+        report = service.run(date=effective_date, force=True)
+
+        if not report:
+            return {
+                "date": effective_date,
+                "label": date_label,
+                "generatedAt": datetime.now().isoformat(),
+                "sentimentIndex": 50,
+                "sentimentPhase": "中性",
+                "totalLimitUp": 0,
+                "marketHeatScore": 50,
+                "fundSentiment": "中性",
+                "buySellAnalyses": [],
+                "termAdvices": [],
+                "individualStockRisks": [],
+                "factorCorrelations": [],
+                "stressTestResults": [],
+                "strategyAdjustments": ["今日无涨停板数据"],
+                "adjustmentReasons": [],
+                "winRateInfo": {},
+            }
+
+        # 获取资金流向分析
+        fund_analysis = None
+        try:
+            from src.seal_plate.capital_flow_analyzer import CapitalFlowAnalyzer
+            analyzer = CapitalFlowAnalyzer()
+            fund_analysis = analyzer.analyze(
+                hot_sectors=report.sector_hot,
+                strong_stocks=list(report.strong_stocks) + list(report.watch_stocks),
+                date=effective_date,
+            )
+        except Exception:
+            pass
+
+        engine = ComprehensiveRecommendationEngine()
+        result = engine.generate_comprehensive(report=report, fund_analysis=fund_analysis)
+
+        # 过滤已排除的仓位标的
+        excluded = _load_excluded_stocks()
+        dp = result.dynamic_position
+        if dp and excluded:
+            dp_dict = dp.__dict__ if hasattr(dp, '__dict__') else {}
+            weights = dp_dict.get("stock_weights", [])
+            filtered = [w for w in weights if w.get("code", "") not in excluded]
+            if len(filtered) < len(weights):
+                dp_dict["stock_weights"] = filtered
+                dp_dict["rebalancing_needed"] = True
+
+        return {
+            "date": result.date,
+            "label": result.label,
+            "generatedAt": result.generated_at,
+            "sentimentIndex": result.sentiment_index,
+            "sentimentPhase": result.sentiment_phase,
+            "totalLimitUp": result.total_limit_up,
+            "marketHeatScore": result.market_heat_score,
+            "fundSentiment": result.fund_sentiment,
+            "buySellAnalyses": [a.__dict__ for a in result.buy_sell_analyses] if result.buy_sell_analyses else [],
+            "termAdvices": [a.__dict__ for a in result.term_advices] if result.term_advices else [],
+            "sectorRotation": result.sector_rotation.__dict__ if result.sector_rotation else None,
+            "riskAssessment": result.risk_assessment.__dict__ if result.risk_assessment else None,
+            "individualStockRisks": [r.__dict__ for r in result.individual_stock_risks] if result.individual_stock_risks else [],
+            "dynamicPosition": dp.__dict__ if hasattr(dp, '__dict__') else dp if dp else None,
+            "factorCorrelations": [f.__dict__ for f in result.factor_correlations] if result.factor_correlations else [],
+            "stressTestResults": [s.__dict__ for s in result.stress_test_results] if result.stress_test_results else [],
+            "strategyAdjustments": result.strategy_adjustments,
+            "adjustmentReasons": result.adjustment_reasons,
+            "winRateInfo": result.win_rate_info,
+        }
+
+    except Exception as e:
+        logger.error("综合推荐生成失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/win-rate-brief")
+async def get_win_rate_brief():
+    """获取胜率简报（供仪表盘快速显示）"""
+    from src.seal_plate.recommendation_log import RecommendationLogStore
+    from src.seal_plate.win_rate_tracker import WinRateTracker
+
+    try:
+        store = RecommendationLogStore()
+        tracker = WinRateTracker(store)
+        stats = tracker.compute_stats()
+
+        return {
+            "total": stats.total_recommendations,
+            "settled": stats.settled,
+            "won": stats.won,
+            "lost": stats.lost,
+            "pending": stats.pending,
+            "winRate": stats.win_rate,
+            "avgReturn": stats.avg_return,
+            "rolling10": stats.rolling_win_rate_10,
+            "trend": stats.trend,
+            "bySector": {
+                s: {"won": d["won"], "total": d["total"], "rate": d["rate"]}
+                for s, d in sorted(stats.by_sector.items(), key=lambda x: x[1]["rate"], reverse=True)[:10]
+            },
+        }
+    except Exception as e:
+        logger.error("胜率简报获取失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ 仓位标的管理 API（从 comprehensive_recommend 合并） ============
+
+_EXCLUDED_STOCKS_FILE = Path(__file__).parent.parent.parent.parent / "excluded_position_stocks.json"
+
+
+def _load_excluded_stocks() -> set:
+    """加载仓位排除标的列表"""
+    if not _EXCLUDED_STOCKS_FILE.exists():
+        return set()
+    try:
+        data = json.loads(_EXCLUDED_STOCKS_FILE.read_text(encoding="utf-8"))
+        return set(data.get("excluded_codes", []))
+    except Exception as e:
+        logger.warning("加载排除标的列表失败: %s", e)
+        return set()
+
+
+def _save_excluded_stocks(codes: set):
+    """保存仓位排除标的列表"""
+    _EXCLUDED_STOCKS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _EXCLUDED_STOCKS_FILE.write_text(
+        json.dumps({"excluded_codes": list(codes), "updated_at": datetime.now().isoformat()},
+                   ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+@router.delete("/position/stocks/{code}", summary="移除仓位配置标的")
+async def remove_position_stock(code: str):
+    """从仓位管理中排除指定标的（下次刷新后不再出现）"""
+    try:
+        code = code.strip()
+        if not re.match(r'^\d{6}$', code):
+            raise HTTPException(status_code=422, detail=f"无效的股票代码: {code}，应为6位数字")
+        excluded = _load_excluded_stocks()
+        excluded.add(code)
+        _save_excluded_stocks(excluded)
+        return {"success": True, "code": code, "excluded_count": len(excluded), "message": f"标的 {code} 已从仓位配置中排除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("移除仓位标的失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/position/stocks/excluded")
+async def get_excluded_position_stocks():
+    """获取已排除的仓位标的列表"""
+    try:
+        excluded = _load_excluded_stocks()
+        return {"excluded_codes": list(excluded), "count": len(excluded)}
+    except Exception as e:
+        logger.error("获取排除列表失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/position/stocks/excluded/{code}", summary="恢复已排除的仓位标的")
+async def restore_position_stock(code: str):
+    """将已排除的标的重新加入仓位管理"""
+    try:
+        code = code.strip()
+        if not re.match(r'^\d{6}$', code):
+            raise HTTPException(status_code=422, detail=f"无效的股票代码: {code}，应为6位数字")
+        excluded = _load_excluded_stocks()
+        if code in excluded:
+            excluded.discard(code)
+            _save_excluded_stocks(excluded)
+            return {"success": True, "code": code, "message": f"标的 {code} 已恢复"}
+        return {"success": False, "code": code, "message": f"标的 {code} 不在排除列表中"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("恢复仓位标的失败: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/position/stocks/excluded", summary="清空排除列表")
+async def clear_excluded_position_stocks():
+    """清空所有已排除的仓位标的"""
+    try:
+        _save_excluded_stocks(set())
+        return {"success": True, "message": "排除列表已清空"}
+    except Exception as e:
+        logger.error("清空排除列表失败: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

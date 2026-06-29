@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Star, StarOff, RefreshCw, Check, Trash2, AlertCircle } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { sealPlateApi } from '../../api/sealPlate';
 import { cn } from '../../utils/cn';
 

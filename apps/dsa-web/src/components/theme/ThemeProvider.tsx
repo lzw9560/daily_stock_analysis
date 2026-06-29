@@ -7,14 +7,14 @@ type ThemeProviderProps = {
   children: React.ReactNode;
 };
 
-const THEMES = ['light', 'dark', 'orange', 'orange-dark'] as const;
+const THEMES = ['light', 'dark', 'blue-dark', 'orange', 'orange-dark'] as const;
 type ThemeValue = (typeof THEMES)[number];
 
 const ThemeClassSetter: React.FC = () => {
   const { theme } = useTheme();
   useEffect(() => {
     const html = document.documentElement;
-    html.classList.remove('light', 'dark', 'orange', 'orange-dark');
+    html.classList.remove('light', 'dark', 'blue-dark', 'orange', 'orange-dark');
     const active = (theme ?? 'dark') as ThemeValue;
     if (THEMES.includes(active)) {
       html.classList.add(active);
@@ -30,7 +30,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       defaultTheme="dark"
       enableSystem
       disableTransitionOnChange
-      themes={['light', 'dark', 'orange', 'orange-dark']}
+      themes={['light', 'dark', 'blue-dark', 'orange', 'orange-dark']}
     >
       <ThemeClassSetter />
       {children}

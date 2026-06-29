@@ -206,7 +206,7 @@ class FactorPipelineService:
         training = self._payload_training_from_dict(backend_payload.get("training_summary"))
         monitoring = self._payload_monitoring_from_dict(backend_payload.get("monitoring_summary"))
         traces = self._payload_trace_item_from_dict(candidate.code, backend_payload.get("traces"), backend_payload.get("backend"), runtime_window)
-        interpretation = self._payload_interpretation_from_dict(backend_payload.get("interpretation"), factor_scores, factor_score, model)
+        interpretation = self._build_interpretation_from_dict(backend_payload.get("interpretation"), factor_scores, factor_score, model)
         payload = FactorPipelineCandidatePayload(
             candidate_id=candidate.id,
             code=candidate.code,

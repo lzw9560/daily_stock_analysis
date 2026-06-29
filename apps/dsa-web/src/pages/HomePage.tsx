@@ -1,12 +1,12 @@
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Check, SlidersHorizontal } from 'lucide-react';
+import { BarChart3, Check, SlidersHorizontal, TrendingUp, Activity, ShieldAlert, Zap, Layers, PieChart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getParsedApiError, type ParsedApiError } from '../api/error';
 import { analysisApi } from '../api/analysis';
 import { agentApi, type SkillInfo } from '../api/agent';
 import { systemConfigApi } from '../api/systemConfig';
-import { ApiErrorAlert, ConfirmDialog, Button, EmptyState, InlineAlert } from '../components/common';
+import { ApiErrorAlert, ConfirmDialog, Button, EmptyState, InlineAlert, MarketTicker } from '../components/common';
 import { DashboardStateBlock } from '../components/dashboard';
 import LLMProviderStatusPanel from '../components/dashboard/LLMProviderStatusPanel';
 import { StockAutocomplete } from '../components/StockAutocomplete';
@@ -15,7 +15,9 @@ import { ReportMarkdownDrawer } from '../components/report/ReportMarkdownDrawer'
 import { ReportSummary } from '../components/report/ReportSummary';
 import { TaskPanel } from '../components/tasks';
 import { useDashboardLifecycle, useHomeDashboardState } from '../hooks';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import type { SetupStatusResponse } from '../types/systemConfig';
+import { cn } from '../utils/cn';
 import { getReportText, normalizeReportLanguage } from '../utils/reportLanguage';
 
 type MarketReviewNotice = {
@@ -27,6 +29,7 @@ type MarketReviewNotice = {
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSubmittingMarketReview, setIsSubmittingMarketReview] = useState(false);
   const [marketReviewNotice, setMarketReviewNotice] = useState<MarketReviewNotice>(null);
@@ -63,6 +66,19 @@ const HomePage: React.FC = () => {
 
     scrollContainer.scrollTop = 0;
   }, []);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts([
+    {
+      key: 'k',
+      ctrlKey: true,
+      description: '聚焦搜索框',
+      handler: () => {
+        const input = document.querySelector<HTMLInputElement>('[data-testid="home-dashboard"] input[type="text"]');
+        input?.focus();
+      },
+    },
+  ]);
 
   useEffect(() => stopMarketReviewPolling, [stopMarketReviewPolling]);
   const [setupStatus, setSetupStatus] = useState<SetupStatusResponse | null>(null);
@@ -715,6 +731,69 @@ const HomePage: React.FC = () => {
           <LLMProviderStatusPanel />
         </div>
 
+        <div className="px-3 pb-2 md:px-4">
+          <MarketTicker compact />
+        </div>
+
+        <div className="flex items-center gap-2 px-3 pb-2 md:px-4 flex-wrap">
+          <button
+            type="button"
+            onClick={() => navigate('/recommendation/market-trend')}
+            className="home-surface-button flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs text-foreground hover:border-primary/30 transition-colors"
+          >
+            <TrendingUp className="h-3.5 w-3.5" />
+            大盘走势
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/recommendation/daily-review')}
+            className="home-surface-button flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs text-foreground hover:border-primary/30 transition-colors"
+          >
+            <Activity className="h-3.5 w-3.5" />
+            每日复盘
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/recommendation/short-term')}
+            className="home-surface-button flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs text-foreground hover:border-primary/30 transition-colors"
+          >
+            <Zap className="h-3.5 w-3.5" />
+            短线打板
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/recommendation/mid-long-term')}
+            className="home-surface-button flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs text-foreground hover:border-primary/30 transition-colors"
+          >
+            <TrendingUp className="h-3.5 w-3.5" />
+            中长线建仓
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/recommendation/risk-control')}
+            className="home-surface-button flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs text-foreground hover:border-primary/30 transition-colors"
+          >
+            <ShieldAlert className="h-3.5 w-3.5" />
+            风控管理
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/recommendation/limit-up-ladder')}
+            className="home-surface-button flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs text-foreground hover:border-primary/30 transition-colors"
+          >
+            <Layers className="h-3.5 w-3.5" />
+            连板梯队
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/recommendation/position-advice')}
+            className="home-surface-button flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs text-foreground hover:border-primary/30 transition-colors"
+          >
+            <PieChart className="h-3.5 w-3.5" />
+            持仓建议
+          </button>
+        </div>
+
         {setupNeedsAction ? (
           <div className="px-3 pb-2 md:px-4">
             <InlineAlert
@@ -741,8 +820,22 @@ const HomePage: React.FC = () => {
         ) : null}
 
         <div className="flex-1 flex min-h-0 overflow-hidden">
-          <div className="hidden min-h-0 w-64 shrink-0 flex-col overflow-hidden pl-4 pb-4 md:flex lg:w-72">
-            {sidebarContent}
+          <div className={cn(
+            'hidden min-h-0 shrink-0 flex-col overflow-hidden pl-4 pb-4 md:flex transition-all duration-300',
+            sidebarCollapsed ? 'w-10' : 'w-64 lg:w-72'
+          )}>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              className="mb-2 self-end rounded-lg p-1 text-muted-foreground hover:text-foreground hover:bg-hover transition-colors"
+              aria-label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+              title={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sidebarCollapsed ? 'M13 5l7 7-7 7M5 5l7 7-7 7' : 'M11 19l-7-7 7-7m8 14l-7-7 7-7'} />
+              </svg>
+            </button>
+            {!sidebarCollapsed && sidebarContent}
           </div>
 
           {sidebarOpen ? (

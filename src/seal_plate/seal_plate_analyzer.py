@@ -622,47 +622,68 @@ class SealPlateAnalyzer:
 
 class SentimentAnalyzer:
     """情绪周期分析器 — 架构文档 §4
-    
+
     支持多数据源增强:
     - 基础: 涨停/跌停统计数据（来自 AKShare/东方财富）
     - 增强: 同花顺热点概念热度（来自 THS Hotspot）
+    - v2: 封板率/赚钱效应/北向资金/连板分布（交易系统升级 Phase 1）
+
+    v2 新增指标 (INDICATOR_WEIGHTS_V2):
+    - seal_rate: 封板率 (8%) — 封板数/(封板数+炸板数)，衡量资金信心
+    - south_flow: 北向资金 (8%) — 净流入/流出，外资态度
+    - connectivity_score: 连板质量 (5%) — 连板分布均匀度，梯队完整性
+    - advance_decline_ratio: 赚钱效应 (7%) — 上涨/下跌家数比
     """
 
-    # 7 项市场指标权重 — 架构文档 §4.2
-    INDICATOR_WEIGHTS = {
-        "limit_up_count":   0.20,   # 涨停家数
-        "limit_down_count": 0.15,   # 跌停家数（反向）
-        "max_consecutive":  0.15,   # 连板高度
-        "bomb_rate":        0.15,   # 炸板率（反向）
-        "avg_premium":      0.15,   # 昨日涨停溢价
-        "advance_rate":     0.15,   # 连板晋级率
-        "volume_change":    0.05,   # 量能变化
+    # 10 项市场指标权重 — v2（交易系统升级 Phase 1）
+    # 总和 = 1.0
+    INDICATOR_WEIGHTS_V2 = {
+        "limit_up_count":         0.15,  # 涨停家数
+        "limit_down_count":       0.10,  # 跌停家数（反向）
+        "max_consecutive":        0.12,  # 连板高度
+        "bomb_rate":              0.10,  # 炸板率（反向）
+        "avg_premium":            0.10,  # 昨日涨停溢价
+        "advance_rate":           0.10,  # 连板晋级率
+        "seal_rate":              0.08,  # 封板率（新增）
+        "north_flow":             0.08,  # 北向资金净流入（新增）
+        "volume_change":          0.05,  # 量能变化
+        "connectivity_score":     0.05,  # 连板分布质量（新增）
+        "advance_decline_ratio":  0.07,  # 赚钱效应（新增）
     }
 
-    # 五阶段阈值 — 架构文档 §4.3
+    # v1 兼容权重（保持向后兼容）
+    INDICATOR_WEIGHTS = INDICATOR_WEIGHTS_V2
+
+    # 六阶段阈值 — v2（新增"分化期"）
     PHASE_THRESHOLDS = {
         "冰点期": (0, 20),
-        "启动期": (21, 40),
-        "发酵期": (41, 60),
-        "高潮期": (61, 80),
-        "退潮期": (81, 100),  # 实际退潮由高位回落判定
+        "修复期": (21, 40),
+        "分化期": (41, 55),
+        "高潮期": (56, 80),
+        "退潮期": (81, 100),  # 需结合历史趋势判定
     }
 
-    # 仓位建议 — 架构文档 §2.2
+    # 仓位建议 — v2（根据阶段调整）
     POSITION_RANGES = {
         "冰点期": (0, 10),
-        "启动期": (20, 30),
-        "发酵期": (50, 70),
-        "高潮期": (30, 50),
-        "退潮期": (0, 10),
+        "修复期": (20, 35),
+        "分化期": (30, 50),
+        "高潮期": (25, 45),
+        "退潮期": (0, 15),
     }
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def calculate_sentiment_index(self, market_data: dict) -> tuple[int, str, dict]:
+    def calculate_sentiment_index(
+        self,
+        market_data: dict,
+        *,
+        prev_score: int | None = None,
+        use_v2: bool = True,
+    ) -> tuple[int, str, dict]:
         """
-        计算情绪指数 — 架构文档 §4.2
+        计算情绪指数（自动选择 v1/v2）— 架构文档 §4.2
 
         Args:
             market_data:
@@ -673,54 +694,179 @@ class SentimentAnalyzer:
                 avg_premium: 昨日涨停溢价 (%)
                 advance_rate: 连板晋级率 (0-1)
                 volume_change: 量能变化 (%)
+                seal_rate: 封板率 (0-1) — v2新增
+                north_flow: 北向资金净流入(亿) — v2新增
+                connectivity_distribution: {2板:n, 3板:n, ...} — v2新增
+                advance_count: 上涨家数 — v2新增
+                decline_count: 下跌家数 — v2新增
+                turnover_total: 两市成交额(亿) — v2新增
+            prev_score: 前一日情绪指数，用于退潮判定
+            use_v2: 是否使用v2增强指标
 
         Returns:
             (情绪指数 0-100, 周期阶段, 各指标得分)
         """
+        if use_v2 and any(k in market_data for k in ("seal_rate", "north_flow", "advance_count")):
+            return self._calculate_v2(market_data, prev_score=prev_score)
+        return self._calculate_v1(market_data)
+
+    def _calculate_v1(self, market_data: dict) -> tuple[int, str, dict]:
+        """v1 计算逻辑 — 向后兼容"""
         scores: dict[str, float] = {}
 
-        # 1. 涨停家数 (20%)
         lu = market_data.get("limit_up_count", 0)
         scores["涨停家数"] = self._norm(lu, 0, 150) * 100
 
-        # 2. 跌停家数 (15%, 反向)
         ld = market_data.get("limit_down_count", 0)
         scores["跌停家数"] = (1 - self._norm(ld, 0, 50)) * 100
 
-        # 3. 连板高度 (15%)
         mh = market_data.get("max_consecutive", 0)
         scores["连板高度"] = self._norm(mh, 1, 10) * 100
 
-        # 4. 炸板率 (15%, 反向)
         br = market_data.get("bomb_rate", 0)
         scores["炸板率"] = (1 - self._norm(br, 0, 0.5)) * 100
 
-        # 5. 昨日涨停溢价 (15%)
         ap = market_data.get("avg_premium", 0)
         scores["昨日溢价"] = self._norm(ap, -5, 10) * 100
 
-        # 6. 连板晋级率 (15%)
         ar = market_data.get("advance_rate", 0)
         scores["晋级率"] = self._norm(ar, 0, 1) * 100
 
-        # 7. 量能变化 (5%)
         vc = market_data.get("volume_change", 0)
         scores["量能变化"] = self._norm(vc, -30, 50) * 100
 
-        # 加权总分
+        # 兼容旧权重（7项 -> 重新归一化到1.0）
+        legacy_weights = {k: self.INDICATOR_WEIGHTS_V2.get(k, 0) for k in [
+            "limit_up_count", "limit_down_count", "max_consecutive",
+            "bomb_rate", "avg_premium", "advance_rate", "volume_change",
+        ]}
+        weight_sum = sum(legacy_weights.values()) or 1.0
         total = 0.0
-        total += scores["涨停家数"]   * self.INDICATOR_WEIGHTS["limit_up_count"]
-        total += scores["跌停家数"]   * self.INDICATOR_WEIGHTS["limit_down_count"]
-        total += scores["连板高度"]   * self.INDICATOR_WEIGHTS["max_consecutive"]
-        total += scores["炸板率"]     * self.INDICATOR_WEIGHTS["bomb_rate"]
-        total += scores["昨日溢价"]   * self.INDICATOR_WEIGHTS["avg_premium"]
-        total += scores["晋级率"]     * self.INDICATOR_WEIGHTS["advance_rate"]
-        total += scores["量能变化"]   * self.INDICATOR_WEIGHTS["volume_change"]
+        total += scores["涨停家数"] * legacy_weights["limit_up_count"] / weight_sum
+        total += scores["跌停家数"] * legacy_weights["limit_down_count"] / weight_sum
+        total += scores["连板高度"] * legacy_weights["max_consecutive"] / weight_sum
+        total += scores["炸板率"] * legacy_weights["bomb_rate"] / weight_sum
+        total += scores["昨日溢价"] * legacy_weights["avg_premium"] / weight_sum
+        total += scores["晋级率"] * legacy_weights["advance_rate"] / weight_sum
+        total += scores["量能变化"] * legacy_weights["volume_change"] / weight_sum
 
         total = min(100, max(0, int(total)))
         phase = self._get_phase(total)
+        return total, phase, {k: int(v) for k, v in scores.items()}
+
+    def _calculate_v2(
+        self, market_data: dict, *, prev_score: int | None = None
+    ) -> tuple[int, str, dict]:
+        """v2 增强计算 — 10项指标加权"""
+        scores: dict[str, float] = {}
+
+        # 1. 涨停家数 (15%)
+        lu = market_data.get("limit_up_count", 0)
+        scores["涨停家数"] = self._norm(lu, 0, 150) * 100
+
+        # 2. 跌停家数 (10%, 反向)
+        ld = market_data.get("limit_down_count", 0)
+        scores["跌停家数"] = (1 - self._norm(ld, 0, 50)) * 100
+
+        # 3. 连板高度 (12%)
+        mh = market_data.get("max_consecutive", 0)
+        scores["连板高度"] = self._norm(mh, 1, 10) * 100
+
+        # 4. 炸板率 (10%, 反向)
+        br = market_data.get("bomb_rate", 0)
+        scores["炸板率"] = (1 - self._norm(br, 0, 0.5)) * 100
+
+        # 5. 昨日涨停溢价 (10%)
+        ap = market_data.get("avg_premium", 0)
+        scores["昨日溢价"] = self._norm(ap, -5, 10) * 100
+
+        # 6. 连板晋级率 (10%)
+        ar = market_data.get("advance_rate", 0)
+        scores["晋级率"] = self._norm(ar, 0, 1) * 100
+
+        # 7. 封板率 (8%) — 新增：封板数/总涨停数
+        sr = market_data.get("seal_rate")
+        if sr is not None:
+            scores["封板率"] = self._norm(sr, 0.3, 0.95) * 100
+        else:
+            # 从 bomb_rate 反推：seal_rate = 1 - bomb_rate * 封板数/涨停数 近似
+            lu_count = max(lu, 1)
+            bomb_est = br if br > 0 else 0.2
+            est_seal = 1.0 - bomb_est
+            scores["封板率"] = self._norm(est_seal, 0.3, 0.95) * 100
+
+        # 8. 北向资金 (8%) — 新增：北向资金净流入
+        nf = market_data.get("north_flow", 0)  # 亿
+        scores["北向资金"] = self._norm(nf, -100, 200) * 100
+
+        # 9. 量能变化 (5%)
+        vc = market_data.get("volume_change", 0)
+        scores["量能变化"] = self._norm(vc, -30, 50) * 100
+
+        # 10. 连板分布质量 (5%) — 新增：评估梯队完整性
+        conn_dist = market_data.get("connectivity_distribution", {})
+        scores["连板梯队"] = self._calc_connectivity_score(conn_dist)
+
+        # 11. 赚钱效应 (7%) — 新增：上涨/下跌家数比
+        ad_ratio = market_data.get("advance_decline_ratio")
+        if ad_ratio is None:
+            adv = market_data.get("advance_count", 0)
+            dec = market_data.get("decline_count", 1)
+            ad_ratio = adv / max(dec, 1)
+        scores["赚钱效应"] = self._norm(ad_ratio, 0.3, 5.0) * 100
+
+        # 加权总分
+        total = 0.0
+        key_map = {
+            "涨停家数": "limit_up_count",
+            "跌停家数": "limit_down_count",
+            "连板高度": "max_consecutive",
+            "炸板率": "bomb_rate",
+            "昨日溢价": "avg_premium",
+            "晋级率": "advance_rate",
+            "封板率": "seal_rate",
+            "北向资金": "north_flow",
+            "量能变化": "volume_change",
+            "连板梯队": "connectivity_score",
+            "赚钱效应": "advance_decline_ratio",
+        }
+        for label, key in key_map.items():
+            if label in scores:
+                total += scores[label] * self.INDICATOR_WEIGHTS_V2.get(key, 0)
+
+        total = min(100, max(0, int(total)))
+        phase = self._get_phase_v2(total, prev_score=prev_score)
 
         return total, phase, {k: int(v) for k, v in scores.items()}
+
+    def _calc_connectivity_score(self, conn_dist: dict) -> float:
+        """计算连板梯队质量分数 (0-100)"""
+        if not conn_dist:
+            return 50.0  # 无数据 → 中性
+        # 理想梯队：2板最多，3板次之，4板以上递减
+        # 有2板+3板→60分，有4板→+15，有5板→+15，有6板以上→+10
+        score = 50.0
+        has_2 = conn_dist.get(2, 0) > 0
+        has_3 = conn_dist.get(3, 0) > 0
+        has_4 = conn_dist.get(4, 0) > 0
+        has_5 = conn_dist.get(5, 0) > 0
+        has_6plus = sum(v for k, v in conn_dist.items() if k >= 6) > 0
+
+        if has_2 and has_3:
+            score += 15  # 有2-3板梯队，基本完整
+        if has_4:
+            score += 12
+        if has_5:
+            score += 10
+        if has_6plus:
+            # 高位连板多 → 可能过热
+            score += 5
+        if not has_2:
+            score -= 10  # 无2板 → 梯队断裂
+        if not has_3 and not has_4:
+            score -= 10  # 缺乏中位连板
+
+        return min(100, max(0, score))
 
     @staticmethod
     def _norm(value: float, min_val: float, max_val: float) -> float:
@@ -731,11 +877,134 @@ class SentimentAnalyzer:
 
     @classmethod
     def _get_phase(cls, score: int) -> str:
-        """根据指数判定阶段"""
+        """根据指数判定阶段（v1兼容）"""
         for phase, (lo, hi) in cls.PHASE_THRESHOLDS.items():
             if lo <= score <= hi:
                 return phase
-        return "中性"
+        return "分化期"
+
+    @classmethod
+    def _get_phase_v2(cls, score: int, *, prev_score: int | None = None) -> str:
+        """v2 阶段判定 — 结合历史趋势识别退潮"""
+        # 基础判定
+        phase = cls._get_phase(score)
+
+        # 退潮判定：需要从前一日高位回落
+        if phase == "退潮期" and prev_score is not None:
+            if prev_score >= 56:  # 前一日在高潮或以上
+                return "退潮期"
+            # 如果前一日不在高位，可能实际只是低分，归类为冰点
+            return "冰点期"
+
+        # 如果前一日在高潮期(≥56)且今日降到分化(41-55)，可能是退潮预警
+        if phase == "分化期" and prev_score is not None and prev_score >= 56:
+            # 高位回落超过15个点 → 退潮确认
+            if prev_score - score >= 15:
+                return "退潮期"
+
+        return phase
+
+    def get_sentiment_report(self, market_data: dict, *, prev_score: int | None = None) -> dict:
+        """生成完整情绪分析报告（供前端/通知使用）
+
+        Returns:
+            {
+                "score": 情绪指数 0-100,
+                "phase": 周期阶段,
+                "phase_icon": 阶段图标,
+                "indicator_scores": {指标名: 得分},
+                "position_suggestion": 仓位建议dict,
+                "market_heat": "过冷/偏冷/适中/偏热/过热",
+                "key_signals": [关键信号描述],
+                "risk_level": "low/medium/high/extreme",
+                "summary": 一句话总结,
+            }
+        """
+        score, phase, scores = self.calculate_sentiment_index(
+            market_data, prev_score=prev_score, use_v2=True
+        )
+        position = self.get_position_suggestion(score)
+
+        # 市场热度
+        if score <= 20:
+            heat = "过冷"
+            risk = "low"
+        elif score <= 40:
+            heat = "偏冷"
+            risk = "low"
+        elif score <= 55:
+            heat = "适中"
+            risk = "medium"
+        elif score <= 75:
+            heat = "偏热"
+            risk = "medium"
+        else:
+            heat = "过热"
+            risk = "high"
+
+        # 关键信号
+        signals = self._extract_key_signals(scores, phase, market_data)
+
+        # 阶段图标
+        phase_icons = {
+            "冰点期": "❄️", "修复期": "🌱", "分化期": "⚡",
+            "高潮期": "🔥", "退潮期": "📉",
+        }
+
+        return {
+            "score": score,
+            "phase": phase,
+            "phase_icon": phase_icons.get(phase, "❓"),
+            "indicator_scores": scores,
+            "position_suggestion": position,
+            "market_heat": heat,
+            "risk_level": risk,
+            "key_signals": signals,
+            "summary": self._generate_summary(score, phase, heat, position),
+        }
+
+    def _extract_key_signals(self, scores: dict, phase: str, market_data: dict) -> list[str]:
+        """提取关键情绪信号"""
+        signals: list[str] = []
+        # 涨停信号
+        if scores.get("涨停家数", 0) >= 80:
+            signals.append("涨停家数活跃(≥80)，市场做多热情高涨")
+        elif scores.get("涨停家数", 0) <= 20:
+            signals.append("涨停家数低迷(≤20)，观望情绪浓厚")
+        # 炸板信号
+        if scores.get("炸板率", 100) <= 30:
+            signals.append("炸板率偏高，封板资金信心不足")
+        # 连板信号
+        if scores.get("连板高度", 0) >= 80:
+            signals.append(f"空间板高度充足({market_data.get('max_consecutive', '?')}板)")
+        # 北向资金
+        nf = market_data.get("north_flow", 0)
+        if nf >= 50:
+            signals.append(f"北向大幅净流入 {nf:.1f}亿")
+        elif nf <= -30:
+            signals.append(f"北向净流出 {abs(nf):.1f}亿")
+        # 赚钱效应
+        if scores.get("赚钱效应", 50) >= 75:
+            signals.append("赚钱效应强，普涨格局")
+        elif scores.get("赚钱效应", 50) <= 25:
+            signals.append("赚钱效应弱，亏钱效应明显")
+        # 封板率
+        if scores.get("封板率", 50) >= 80:
+            signals.append("封板率高，打板环境友好")
+        return signals
+
+    @staticmethod
+    def _generate_summary(score: int, phase: str, heat: str, position: dict) -> str:
+        phase_summaries = {
+            "冰点期": "市场极度低迷，建议空仓等待，仅极小仓位试错首板",
+            "修复期": "情绪逐步回暖，可轻仓参与低位首板和修复机会",
+            "分化期": "板块轮动加快，聚焦主线龙头，控制仓位",
+            "高潮期": "赚钱效应扩散但风险积聚，逐步兑现利润，不宜追高",
+            "退潮期": "高位股杀跌，果断减仓/清仓，保护利润",
+        }
+        base = phase_summaries.get(phase, "观望为主")
+        pos = position.get("position_range", "0%")
+        return f"[{heat}] {base}。建议仓位: {pos}"
 
     def enhance_with_hotspot(
         self, sentiment_data: dict, hotspot_data: Optional[dict] = None
@@ -799,19 +1068,21 @@ class SentimentAnalyzer:
     @staticmethod
     def _get_strategy(phase: str) -> str:
         return {
-            "冰点期": "空仓休息，极小仓位试错首板",
-            "启动期": "试错参与空间板、首板一进二",
-            "发酵期": "积极参与总龙头和核心股",
-            "高潮期": "逐步卖出，兑现利润，不追高",
-            "退潮期": "果断空仓，不接飞刀",
-        }.get(phase, "观望")
+            "冰点期": "空仓休息，极小仓位试错首板。关注逆势抗跌标的",
+            "修复期": "轻仓试错空间板、首板一进二。关注率先修复的板块",
+            "分化期": "聚焦主线龙头，去弱留强。板块轮动中高抛低吸",
+            "高潮期": "逐步卖出，兑现利润。新开仓比例降低，不追加速板",
+            "退潮期": "果断空仓/轻仓，不接飞刀。耐心等待冰点信号",
+        }.get(phase, "观望为主，等待明确信号")
 
     @staticmethod
     def _get_warning(phase: str, score: int) -> str | None:
         if phase == "高潮期" and score >= 75:
-            return "⚠️ 情绪过热，建议逐步减仓"
+            return "⚠️ 情绪过热，建议逐步减仓至30%以下"
         if phase == "退潮期":
-            return "🔴 情绪退潮，强烈建议空仓"
+            return "🔴 情绪退潮确认，强烈建议空仓/轻仓(≤15%)"
         if phase == "冰点期" and score <= 10:
-            return "❄️ 市场冰点，耐心等待机会"
+            return "❄️ 市场极度冰点，耐心等待修复信号"
+        if phase == "分化期" and score <= 48:
+            return "⚡ 分化加剧，去弱留强，控制单票仓位≤20%"
         return None

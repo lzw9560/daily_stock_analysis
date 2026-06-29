@@ -170,7 +170,8 @@ def _parse_items_from_text(text: str) -> List[Tuple[str, Optional[str], str]]:
 
             parsed_data = repair_json(cleaned, return_objects=True)
             logger.debug("[ImageExtractor] json.loads failed, repaired malformed JSON response")
-        except Exception:
+        except Exception as e:
+            logger.debug("json_repair 修复也失败: %s", e)
             parsed_data = None
 
     if isinstance(parsed_data, list):

@@ -1,0 +1,42 @@
+"""配置分类定义"""
+
+SCHEMA_VERSION = "2026-05-25"
+
+_CATEGORY_DEFINITIONS = [   {   'category': 'base',
+        'description': 'Watchlist and foundational application settings.',
+        'display_order': 10,
+        'title': 'Base Settings'},
+    {   'category': 'ai_model',
+        'description': 'Model providers, model names, and inference parameters.',
+        'display_order': 20,
+        'title': 'AI Model'},
+    {   'category': 'data_source',
+        'description': 'Market data provider credentials and priority settings.',
+        'display_order': 30,
+        'title': 'Data Source'},
+    {   'category': 'notification',
+        'description': 'Bot, webhook, and push channel related settings.',
+        'display_order': 40,
+        'title': 'Notification'},
+    {'category': 'system', 'description': 'Runtime and scheduling controls.', 'display_order': 50, 'title': 'System'},
+    {   'category': 'agent',
+        'description': 'Agent mode and strategy-skill settings.',
+        'display_order': 55,
+        'title': 'Agent'},
+    {   'category': 'backtest',
+        'description': 'Backtest engine behavior and evaluation parameters.',
+        'display_order': 60,
+        'title': 'Backtest'},
+    {   'category': 'uncategorized',
+        'description': 'Keys not mapped in the field registry.',
+        'display_order': 99,
+        'title': 'Uncategorized'}]
+
+WEB_SETTINGS_HIDDEN_FROM_UI = {'DATABASE_PATH',
+ 'PROXY_HOST',
+ 'PROXY_PORT',
+ 'SQLITE_BUSY_TIMEOUT_MS',
+ 'SQLITE_WAL_ENABLED',
+ 'SQLITE_WRITE_RETRY_BASE_DELAY',
+ 'SQLITE_WRITE_RETRY_MAX',
+ 'USE_PROXY'}

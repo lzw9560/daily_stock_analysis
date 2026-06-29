@@ -1,5 +1,5 @@
 import type React from 'react';
-import { lazy, useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { ApiErrorAlert, Shell } from './components/common';
 import {
@@ -7,25 +7,22 @@ import {
   RouteOutletBoundary,
   StandaloneRouteBoundary,
 } from './components/layout/RouteBoundary';
+import { RecommendationLayout } from './components/layout/RecommendationLayout';
+import { BacktestLayout } from './components/layout/BacktestLayout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useAgentChatStore } from './stores/agentChatStore';
 import './App.css';
 
-const HomePage = lazy(() => import('./pages/HomePage'));
-const BacktestPage = lazy(() => import('./pages/BacktestPage'));
-const BacktestOptimizationPage = lazy(() => import('./pages/BacktestOptimizationPage'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const LoginPage = lazy(() => import('./pages/LoginPage'));
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
-const ChatPage = lazy(() => import('./pages/ChatPage'));
-const SealPlatePage = lazy(() => import('./pages/SealPlatePage'));
-const PositionMonitorPage = lazy(() => import('./pages/PositionMonitorPage'));
-const AlertsPage = lazy(() => import('./pages/AlertsPage'));
-const StockScreeningPage = lazy(() => import('./pages/StockScreeningPage'));
-const ComprehensiveRecommendationPage = lazy(() => import('./pages/ComprehensiveRecommendationPage'));
-const DeepAnalysisPage = lazy(() => import('./pages/DeepAnalysisPage'));
-const RecommendationTrackingPage = lazy(() => import('./pages/RecommendationTrackingPage'));
-const StrategyOptimizerPage = lazy(() => import('./pages/StrategyOptimizerPage'));
+// ── 页面组件（集中管理于 config/routes.ts） ──
+import {
+  HomePage, BacktestPage, BacktestOptimizationPage, SettingsPage, LoginPage, NotFoundPage,
+  ChatPage, SealPlatePage, PositionMonitorPage, AlertsPage, StockScreeningPage,
+  ComprehensiveRecommendationPage, DeepAnalysisPage, RecommendationTrackingPage,
+  StrategyOptimizerPage, SectorHeatmapPage,
+  MarketTrendPage, DailyReviewPage, CapitalFlowPage, ShortTermTargetsPage,
+  MidLongTermPage, RiskControlPage, ThemeMiningPage, LimitUpLadderPage,
+  MultiFactorBacktestPage, PositionAdvicePage,
+} from './config/routes';
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -84,8 +81,11 @@ const AppContent: React.FC = () => {
         <Route path="/" element={<HomePage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/screening" element={<StockScreeningPage />} />
-        <Route path="/backtest" element={<BacktestPage />} />
-        <Route path="/backtest/optimization" element={<BacktestOptimizationPage />} />
+        {/* ── 回测 二级路由（顶部标签栏布局）── */}
+        <Route path="/backtest" element={<BacktestLayout />}>
+          <Route index element={<BacktestPage />} />
+          <Route path="optimization" element={<BacktestOptimizationPage />} />
+        </Route>
         <Route path="/seal-plate" element={<SealPlatePage />} />
         <Route path="/comprehensive" element={<ComprehensiveRecommendationPage />} />
         <Route path="/position-monitor" element={<PositionMonitorPage />} />
@@ -94,6 +94,23 @@ const AppContent: React.FC = () => {
         <Route path="/strategy-optimizer" element={<StrategyOptimizerPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+
+        <Route path="/sector-heatmap" element={<SectorHeatmapPage />} />
+
+        {/* ── 推荐系统 二级路由（独立顶部标签栏布局）── */}
+        <Route element={<RecommendationLayout />}>
+          <Route path="/recommendation/market-trend" element={<MarketTrendPage />} />
+          <Route path="/recommendation/daily-review" element={<DailyReviewPage />} />
+          <Route path="/recommendation/capital-flow" element={<CapitalFlowPage />} />
+          <Route path="/recommendation/short-term" element={<ShortTermTargetsPage />} />
+          <Route path="/recommendation/mid-long-term" element={<MidLongTermPage />} />
+          <Route path="/recommendation/risk-control" element={<RiskControlPage />} />
+          <Route path="/recommendation/theme-mining" element={<ThemeMiningPage />} />
+          <Route path="/recommendation/limit-up-ladder" element={<LimitUpLadderPage />} />
+          <Route path="/recommendation/multi-factor-backtest" element={<MultiFactorBacktestPage />} />
+          <Route path="/recommendation/position-advice" element={<PositionAdvicePage />} />
+        </Route>
+
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

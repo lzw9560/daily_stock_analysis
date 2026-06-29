@@ -20,6 +20,17 @@ export interface RecommendationRecord {
   notes: string;
   createdAt: string;
   updatedAt: string;
+  // 交易信号增强字段
+  signalType: string;
+  strategyPattern: string;
+  confidence: number;
+  entryMethod: string;
+  stopLoss: number | null;
+  takeProfit: number | null;
+  sectors: string;
+  sentimentPhase: string;
+  expectedHoldDays: number | null;
+  timeHorizon: string;
 }
 
 export interface RecommendationListResponse {
@@ -96,6 +107,28 @@ export interface ListRecordsParams {
   endDate?: string;
   page?: number;
   limit?: number;
+  tagFilter?: string;
+}
+
+// ── 共同点分析 ──────────────────────────────────────────────────
+
+export interface CommonalityTag {
+  key: string;
+  label: string;
+  value: string;
+  count: number;
+  category: string;
+}
+
+export interface CommonalityGroup {
+  category: string;
+  categoryLabel: string;
+  tags: CommonalityTag[];
+}
+
+export interface CommonalityResponse {
+  totalAnalyzed: number;
+  groups: CommonalityGroup[];
 }
 
 export const recommendationTrackingApi = {
@@ -146,4 +179,10 @@ export const recommendationTrackingApi = {
       start_date: startDate,
       end_date: endDate,
     }).then(res => toCamelCase<SummaryResponse>(res.data)),
+
+  /** 获取推荐共同点分析 */
+  getCommonality: (startDate?: string, endDate?: string, tagFilter?: string) =>
+    apiClient.get<CommonalityResponse>('/api/v1/recommendation-tracking/commonality', {
+      params: { start_date: startDate, end_date: endDate, tag_filter: tagFilter },
+    }).then(res => toCamelCase<CommonalityResponse>(res.data)),
 };

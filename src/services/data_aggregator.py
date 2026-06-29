@@ -220,15 +220,15 @@ class DataAggregator:
                 result.hot_concepts = hot_analysis.get("hot_concepts", [])
                 result.market_heat_score = hot_analysis.get("market_heat_score", 50)
                 sources_used.add("THSHotspotFetcher")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("热点分析获取失败: %s", e)
 
             try:
                 recent_limit = self.iwencai.get_recent_limit_up(days=2)
                 result.screening_results["recent_limit_up"] = recent_limit
                 sources_used.add("IwenCaiFetcher")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("近期涨停数据获取失败: %s", e)
 
         elif "volume" in strategy_name.lower():
             # 放量策略 → 重点关注量比
@@ -236,8 +236,8 @@ class DataAggregator:
                 breakout = self.iwencai.get_volume_breakout()
                 result.screening_results["volume_breakout"] = breakout
                 sources_used.add("IwenCaiFetcher")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("放量突破数据获取失败: %s", e)
 
         elif "momentum" in strategy_name.lower() or "trend" in strategy_name.lower():
             # 趋势策略 → 动量选股
@@ -245,8 +245,8 @@ class DataAggregator:
                 momentum = self.iwencai.get_momentum_stocks(min_change=10, days=10)
                 result.screening_results["momentum_stocks"] = momentum
                 sources_used.add("IwenCaiFetcher")
-            except Exception:
-                pass
+            except (ConnectionError, TimeoutError, TypeError) as e:
+                logger.warning("动量选股数据获取失败: %s", e)
 
         result.data_sources_used = sorted(sources_used)
         return result
@@ -300,7 +300,8 @@ class DataAggregator:
         try:
             quote = self.tencent.get_realtime_quote("000001")
             status.available = quote is not None
-        except Exception:
+        except (ConnectionError, TimeoutError) as e:
+            logger.warning("TencentFetcher 健康检查失败: %s", e)
             status.available = False
         health["TencentFetcher"] = status
 
@@ -309,7 +310,8 @@ class DataAggregator:
         try:
             results = self.iwencai.stock_screening("今日涨停", top_n=5)
             status.available = len(results) > 0
-        except Exception:
+        except (ConnectionError, TimeoutError, TypeError) as e:
+            logger.warning("IwenCaiFetcher 健康检查失败: %s", e)
             status.available = False
         health["IwenCaiFetcher"] = status
 
@@ -318,7 +320,8 @@ class DataAggregator:
         try:
             concepts = self.ths_hotspot.get_hot_concepts(top_n=5)
             status.available = len(concepts) > 0
-        except Exception:
+        except (ConnectionError, TimeoutError, TypeError) as e:
+            logger.warning("THSHotspotFetcher 健康检查失败: %s", e)
             status.available = False
         health["THSHotspotFetcher"] = status
 

@@ -116,6 +116,24 @@ export type ScreeningRecordsResponse = {
   records: ScreeningRecordItem[];
 };
 
+export type BacktestResultItem = {
+  period?: string;
+  totalReturn?: number;
+  annualReturn?: number;
+  maxDrawdown?: number;
+  sharpeRatio?: number;
+  winRate?: number;
+  [key: string]: unknown;
+};
+
+export type BacktestSummary = {
+  avgAnnualReturn?: number;
+  avgMaxDrawdown?: number;
+  avgSharpe?: number;
+  avgWinRate?: number;
+  [key: string]: unknown;
+};
+
 export type ScreeningRecordDetail = ScreeningRecordItem & {
   errorMessage?: string;
   snapshotCount?: number;
@@ -127,6 +145,10 @@ export type ScreeningRecordDetail = ScreeningRecordItem & {
   llmCoverage?: number | null;
   warnings?: string[];
   sourceErrors?: string[];
+  executionLogs?: string;
+  factorPipeline?: Record<string, unknown>;
+  backtestResults?: BacktestResultItem[];
+  backtestSummary?: BacktestSummary;
   candidates: AlphaSiftCandidate[];
 };
 
@@ -163,6 +185,24 @@ export const alphasiftApi = {
       max_results: payload.maxResults,
     }, { timeout: ALPHASIFT_SCREEN_TIMEOUT_MS });
     return toCamelCase<AlphaSiftScreenResponse>(response.data);
+  },
+
+  /** 一键运行所有策略（调用 POST /api/v1/screening/run） */
+  async runBatch(payload: {
+    strategies?: string[];
+    market?: string;
+    maxResults?: number;
+    autoBacktest?: boolean;
+    notifyFeishu?: boolean;
+  } = {}): Promise<ScreeningRunResponse> {
+    const response = await apiClient.post<Record<string, unknown>>('/api/v1/screening/run', {
+      strategies: payload.strategies ?? null,
+      market: payload.market ?? 'cn',
+      max_results: payload.maxResults ?? 20,
+      auto_backtest: payload.autoBacktest ?? true,
+      notify_feishu: payload.notifyFeishu ?? false,
+    }, { timeout: ALPHASIFT_SCREEN_TIMEOUT_MS * 2 });
+    return toCamelCase<ScreeningRunResponse>(response.data);
   },
 
   async getStrategies(): Promise<AlphaSiftStrategiesResponse> {
@@ -223,3 +263,45 @@ export const alphasiftApi = {
     return toCamelCase<FactorPipelineTriggerResponse>(response.data);
   },
 };
+
+/** 批量运行响应类型 */
+export type ScreeningRunResponse = {
+  screeningDate: string;
+  totalStrategies: number;
+  completedStrategies: number;
+  failedStrategies: number;
+  totalCandidates: number;
+  uniqueCodes: number;
+  strategies: Array<{
+    strategy: string;
+    market: string;
+    status: string;
+    candidateCount: number;
+    recordId?: number;
+    error?: string;
+    candidateCodes?: string[];
+  }>;
+  autoBacktest?: {
+    status: string;
+    error?: string;
+  } | null;
+};
+
+/** AlphaSift 策略中文名称映射表 */
+export const STRATEGY_NAME_CN: Record<string, string> = {
+  dual_low: '双低策略',
+  quality_value: '优质价值',
+  volume_breakout: '放量突破',
+  balanced_alpha: '均衡阿尔法',
+  capital_heat: '资金热度',
+  growth_at_reasonable_price: '合理价格成长',
+  momentum_breakout: '动量突破',
+  low_volatility_quality: '低波优质',
+  deep_value: '深度价值',
+  dividend_aristocrats: '红利贵族',
+  quality_compounders: '优质复利',
+  turnaround_opportunities: '困境反转',
+};
+
+/** 获取策略中文名 */
+export const getStrategyNameCn = (key: string): string => STRATEGY_NAME_CN[key] || key;

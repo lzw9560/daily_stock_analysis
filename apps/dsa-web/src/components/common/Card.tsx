@@ -2,8 +2,8 @@ import type React from 'react';
 import { cn } from '../../utils/cn';
 
 interface CardProps {
-  title?: string;
-  subtitle?: string;
+  title?: React.ReactNode;
+  subtitle?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
@@ -12,6 +12,7 @@ interface CardProps {
   padding?: 'none' | 'sm' | 'md' | 'lg';
   /** 添加发光效果（hover 时 cyan glow） */
   glow?: boolean;
+  onClick?: React.MouseEventHandler<HTMLDivElement>;
 }
 
 const paddingStyles: Record<string, string> = {
@@ -40,13 +41,14 @@ export const Card: React.FC<CardProps> = ({
   hoverable = false,
   padding = 'md',
   glow = false,
+  onClick,
 }) => {
   const hoverClasses = hoverable ? 'terminal-card-hover cursor-pointer' : '';
   const glowClasses = glow ? 'transition-shadow duration-300 hover:shadow-glow-cyan' : '';
 
 if (variant === 'gradient') {
     return (
-      <div className={cn('gradient-border-card', glowClasses, className)} style={style}>
+      <div className={cn('gradient-border-card', glowClasses, className)} style={style} onClick={onClick}>
         <div className={cn('gradient-border-card-inner', paddingStyles[padding])}>
           {(title || subtitle) && (
             <div className="mb-3">
@@ -65,6 +67,7 @@ if (variant === 'glass') {
       <div
         style={style}
         className={cn('glass-card', hoverClasses, glowClasses, paddingStyles[padding], className)}
+        onClick={onClick}
       >
         {(title || subtitle) && (
           <div className="mb-3">
@@ -80,6 +83,7 @@ if (variant === 'glass') {
   return (
     <div
       style={style}
+      onClick={onClick}
       className={cn(
         'rounded-2xl',
         'terminal-card',

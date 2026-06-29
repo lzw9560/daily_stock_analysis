@@ -1,41 +1,22 @@
 import type React from 'react';
-import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { ThemeToggle } from '../theme/ThemeToggle';
+import { getRouteTitle } from '../../config/routes';
 
 type ShellHeaderProps = {
-  collapsed: boolean;
-  onToggleSidebar: () => void;
   onOpenMobileNav: () => void;
 };
 
-const TITLES: Record<string, { title: string; description: string }> = {
-  '/': { title: '首页', description: '股票分析与历史报告工作台' },
-  '/chat': { title: '问股', description: '多轮策略问答与历史会话管理' },
-  '/screening': { title: '选股', description: 'AlphaSift 智能选股与量化筛选' },
-  '/backtest': { title: '回测', description: '回测任务与结果浏览' },
-  '/backtest/optimization': { title: '回测优化', description: '参数扫描、候选对比与历史扫描' },
-  '/seal-plate': { title: '打板', description: '打板推荐、封板分析与股票池管理' },
-  '/comprehensive': { title: '综合推荐', description: '多维信号聚合与仓位管理' },
-  '/alerts': { title: '告警', description: '实时告警规则与通知管理' },
-  '/position-monitor': { title: '持仓监控', description: '实时持仓监控与风险预警' },
-  '/deep-analysis': { title: '深度分析', description: 'TradingAgents 多Agent投研 — 7位AI分析师深度研判' },
-  '/recommendation-tracking': { title: '推荐追踪', description: '历史推荐记录追踪、胜率回溯与策略反思' },
-  '/strategy-optimizer': { title: '策略优化', description: '自适应参数调优、信号过滤、交易纪律与风险预警' },
-  '/settings': { title: '设置', description: '系统配置、模型与认证管理' },
-};
-
 export const ShellHeader: React.FC<ShellHeaderProps> = ({
-  collapsed,
-  onToggleSidebar,
   onOpenMobileNav,
 }) => {
   const location = useLocation();
-  const current = TITLES[location.pathname] ?? { title: 'Daily Stock Analysis', description: 'Web workspace' };
+  const current = getRouteTitle(location.pathname);
 
   return (
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background/84 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 w-full max-w-[1680px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 w-full max-w-[var(--shell-content-max-width)] items-center gap-3 px-4 sm:px-6 lg:px-8">
         <button
           type="button"
           onClick={onOpenMobileNav}
@@ -43,15 +24,6 @@ export const ShellHeader: React.FC<ShellHeaderProps> = ({
           aria-label="打开导航菜单"
         >
           <Menu className="h-5 w-5" />
-        </button>
-
-        <button
-          type="button"
-          onClick={onToggleSidebar}
-          className="hidden h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-card/70 text-secondary-text transition-colors hover:bg-hover hover:text-foreground lg:inline-flex"
-          aria-label={collapsed ? '展开侧边栏' : '折叠侧边栏'}
-        >
-          {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
         </button>
 
         <div className="min-w-0 flex-1">

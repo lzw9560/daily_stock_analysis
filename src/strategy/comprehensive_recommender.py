@@ -537,8 +537,8 @@ class ComprehensiveRecommendationEngine:
                 for s, d in high_win[:5]
                 if s not in existing_hot
             ]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("板块轮动下一潜力推荐构建失败: %s", e)
 
         # 游资关注方向
         if hot_sectors:
@@ -860,8 +860,8 @@ class ComprehensiveRecommendationEngine:
                 position.target_position_pct = position.target_position_pct * 0.6
                 position.adjustment_reason = "胜率下降趋势，主动降低仓位"
                 position.rebalancing_needed = True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("仓位动态调整失败: %s", e)
 
         # 个股权重分配（基于买入意愿和风险）
         try:

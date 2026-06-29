@@ -1,11 +1,11 @@
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Minus, Sparkles, X } from 'lucide-react';
+import { Check, Minus, Sparkles, X, TrendingUp, Percent, Activity, Target } from 'lucide-react';
 import { backtestApi } from '../api/backtest';
 import type { ParsedApiError } from '../api/error';
 import { getParsedApiError } from '../api/error';
-import { ApiErrorAlert, Card, Badge, EmptyState, Pagination, StatusDot, Tooltip } from '../components/common';
+import { ApiErrorAlert, Card, Badge, EmptyState, Pagination, StatusDot, Tooltip, WinRateDonut } from '../components/common';
 import type {
   BacktestResultItem,
   BacktestRunResponse,
@@ -479,15 +479,103 @@ const BacktestPage: React.FC = () => {
       </header>
 
       {/* Main content */}
-      <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 lg:flex-row">
-        {/* Left sidebar - Performance */}
-        <div className="flex max-h-[38vh] flex-col gap-3 overflow-y-auto lg:max-h-none lg:w-60 lg:flex-shrink-0">
+      <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
+        {/* Stat cards row - top-level summary */}
+        {overallPerf && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
+            <Card variant="bordered" padding="sm" className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-success/10">
+                <Target className="h-5 w-5 text-success" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">方向准确率</p>
+                <p className="text-lg font-bold text-success">{pct(overallPerf.directionAccuracyPct)}</p>
+              </div>
+            </Card>
+            <Card variant="bordered" padding="sm" className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Percent className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">胜率</p>
+                <p className="text-lg font-bold text-primary">{pct(overallPerf.winRatePct)}</p>
+              </div>
+            </Card>
+            <Card variant="bordered" padding="sm" className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-warning/10">
+                <Activity className="h-5 w-5 text-warning" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">平均收益</p>
+                <p className="text-lg font-bold text-warning">{pct(overallPerf.avgSimulatedReturnPct)}</p>
+              </div>
+            </Card>
+            <Card variant="bordered" padding="sm" className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-danger/10">
+                <TrendingUp className="h-5 w-5 text-danger" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">止盈/止损触发</p>
+                <p className="text-lg font-bold text-danger">
+                  {pct(overallPerf.takeProfitTriggerRate)} / {pct(overallPerf.stopLossTriggerRate)}
+                </p>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        <div className="flex min-h-0 flex-col gap-3 lg:flex-row flex-1">
+        {/* Left sidebar - Performance + WinRate Donut + Profit Curve */}
+        <div className="flex flex-col gap-3 overflow-y-auto lg:w-72 lg:flex-shrink-0">
           {isLoadingPerf ? (
             <div className="flex items-center justify-center py-8">
               <div className="backtest-spinner sm" />
             </div>
           ) : overallPerf ? (
-            <PerformanceCard metrics={overallPerf} title="整体表现" />
+            <>
+              <PerformanceCard metrics={overallPerf} title="整体表现" />
+              <div className="flex justify-center">
+                <WinRateDonut
+                  winRate={overallPerf.winRatePct ?? 0}
+                  size="md"
+                  label="综合胜率"
+                  sublabel={`${overallPerf.winCount}赢/${overallPerf.lossCount}输`}
+                />
+              </div>
+              {/* Profit distribution bar chart */}
+              <Card variant="bordered" padding="sm" className="flex flex-col gap-2">
+                <span className="text-xs font-medium text-muted-foreground">盈亏分布</span>
+                <div className="flex items-end gap-2 h-16">
+                  <div className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full rounded-t bg-success/80 transition-all duration-500"
+                      style={{
+                        height: `${overallPerf.winCount > 0 ? Math.max(8, (overallPerf.winCount / Math.max(overallPerf.winCount, overallPerf.lossCount, overallPerf.neutralCount, 1)) * 100) : 0}%`,
+                      }}
+                    />
+                    <span className="text-[10px] text-muted-foreground">赢 {overallPerf.winCount}</span>
+                  </div>
+                  <div className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full rounded-t bg-danger/80 transition-all duration-500"
+                      style={{
+                        height: `${overallPerf.lossCount > 0 ? Math.max(8, (overallPerf.lossCount / Math.max(overallPerf.winCount, overallPerf.lossCount, overallPerf.neutralCount, 1)) * 100) : 0}%`,
+                      }}
+                    />
+                    <span className="text-[10px] text-muted-foreground">亏 {overallPerf.lossCount}</span>
+                  </div>
+                  <div className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full rounded-t bg-warning/80 transition-all duration-500"
+                      style={{
+                        height: `${overallPerf.neutralCount > 0 ? Math.max(8, (overallPerf.neutralCount / Math.max(overallPerf.winCount, overallPerf.lossCount, overallPerf.neutralCount, 1)) * 100) : 0}%`,
+                      }}
+                    />
+                    <span className="text-[10px] text-muted-foreground">平 {overallPerf.neutralCount}</span>
+                  </div>
+                </div>
+              </Card>
+            </>
           ) : (
             <EmptyState
               title="暂无指标"
@@ -624,6 +712,7 @@ const BacktestPage: React.FC = () => {
             </div>
           )}
         </section>
+        </div>
       </main>
     </div>
   );

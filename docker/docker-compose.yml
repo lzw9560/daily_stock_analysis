@@ -34,6 +34,14 @@ x-common: &common
     # 如需覆盖前端静态资源，可取消注释：
     # - ../static:/app/static:ro
 
+  # DNS 配置（解决容器内 data.eastmoney.com 等域名解析失败的问题）
+  # 优先使用国内 DNS，再回退到 Google DNS
+  dns:
+    - 114.114.114.114
+    - 223.5.5.5
+    - 8.8.8.8
+  dns_search: []
+
   environment:
     - TZ=Asia/Shanghai
     - WEBUI_HOST=0.0.0.0

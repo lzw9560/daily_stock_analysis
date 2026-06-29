@@ -335,8 +335,8 @@ class PositionMonitorEngine:
         if self._sender._webhook_url:
             try:
                 self._sender.send_heartbeat()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("发送启动心跳失败: %s", e)
 
     def pause(self):
         """暂停监控"""
@@ -424,6 +424,6 @@ def reset_monitor_engine():
         if _engine_instance is not None:
             try:
                 _engine_instance.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("监控引擎停止失败: %s", e)
         _engine_instance = None

@@ -16,6 +16,7 @@ class ScreeningRunRequest(BaseModel):
     market: str = Field(default="cn", min_length=1, max_length=16)
     max_results: int = Field(default=20, ge=1, le=100)
     auto_backtest: bool = Field(default=True)
+    notify_feishu: bool = Field(default=False, description="是否发送飞书通知")
 
 
 class ScreeningRunResponse(BaseModel):

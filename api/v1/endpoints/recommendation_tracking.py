@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from api.v1.schemas.recommendation_tracking import (
     CloseRecordRequest,
+    CommonalityResponse,
     CreateRecommendationRequest,
     RecommendationListResponse,
     RecommendationRecordSchema,
@@ -33,7 +34,7 @@ router = APIRouter(tags=["推荐追踪"])
 
 @router.post("/records", response_model=RecommendationRecordSchema, status_code=201)
 async def create_record(req: CreateRecommendationRequest) -> Dict[str, Any]:
-    """创建推荐追踪记录."""
+    """创建推荐追踪记录（支持增强分类字段）."""
     try:
         service = RecommendationTrackingService()
         return service.create_record(
@@ -44,6 +45,16 @@ async def create_record(req: CreateRecommendationRequest) -> Dict[str, Any]:
             source=req.source,
             source_task_id=req.source_task_id,
             reason=req.reason,
+            signal_type=req.signal_type,
+            strategy_pattern=req.strategy_pattern,
+            confidence=req.confidence,
+            entry_method=req.entry_method,
+            stop_loss=req.stop_loss,
+            take_profit=req.take_profit,
+            sectors=req.sectors,
+            sentiment_phase=req.sentiment_phase,
+            expected_hold_days=req.expected_hold_days,
+            time_horizon=req.time_horizon,
         )
     except Exception as exc:
         logger.exception("创建推荐记录失败")
@@ -190,4 +201,30 @@ async def generate_summary(req: SummaryRequest = SummaryRequest()) -> Dict[str, 
         )
     except Exception as exc:
         logger.exception("生成自省总结失败")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── 共同点分析 ────────────────────────────────────────────────────────────────
+
+
+@router.get("/commonality", response_model=CommonalityResponse)
+async def get_commonality(
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
+    tag_filter: Optional[str] = Query(None, description="按标签过滤 (key:value 格式)"),
+) -> Dict[str, Any]:
+    """分析推荐记录之间的共同特征与关联性.
+
+    从板块归属、信号方向、来源、价格区间、时间窗口、理由关键词
+    等多个维度挖掘推荐股票间的共同点，以标签形式展示。
+    """
+    try:
+        service = RecommendationTrackingService()
+        return service.get_commonality(
+            start_date=start_date,
+            end_date=end_date,
+            tag_filter=tag_filter,
+        )
+    except Exception as exc:
+        logger.exception("共同点分析失败")
         raise HTTPException(status_code=500, detail=str(exc))

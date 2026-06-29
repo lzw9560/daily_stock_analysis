@@ -353,8 +353,8 @@ class LogicClosureService:
                     rules["hard_stop_pct"] = round(-max_loss * 1.2, 1)
                     # 移动止损设为历史最大亏损的0.8倍
                     rules["trailing_stop_pct"] = round(-max_loss * 0.8, 1)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("回测统计数据获取失败，跳过动态止损调整: %s", e)
 
         # 从 result 中提取已设置的止损位（如果有）
         if result and hasattr(result, "stop_loss") and result.stop_loss:
@@ -491,6 +491,6 @@ class LogicClosureService:
                 price_match = re.search(r"(?:当前价格|现价|最新价)[：:]\s*(\d+\.?\d*)", content)
                 if price_match:
                     return float(price_match.group(1))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("从报告文件提取价格失败: report_path=%s, error=%s", report_path, e)
         return 0.0

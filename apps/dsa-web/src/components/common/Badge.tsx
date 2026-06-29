@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'history';
+type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'history' | 'outline';
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   children: React.ReactNode;
@@ -19,6 +19,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   danger: 'border-danger/20 bg-danger/10 text-danger',
   info: 'border-cyan/30 bg-cyan/12 text-cyan',
   history: 'border-purple/20 bg-purple/10 text-purple',
+  outline: 'border-border/40 bg-transparent text-muted-foreground',
 };
 
 const glowStyles: Record<BadgeVariant, string> = {
@@ -28,6 +29,7 @@ const glowStyles: Record<BadgeVariant, string> = {
   danger: 'shadow-danger/20',
   info: 'shadow-cyan/20',
   history: 'shadow-purple/20',
+  outline: '',
 };
 
 /**

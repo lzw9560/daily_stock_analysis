@@ -21,6 +21,17 @@ class CreateRecommendationRequest(BaseModel):
     source: str = Field(default="analysis", description="来源: analysis/deep_analysis/seal_plate/comprehensive/manual")
     source_task_id: Optional[str] = Field(None, description="来源任务ID")
     reason: Optional[str] = Field(None, description="推荐理由")
+    # 交易信号增强字段（可选）
+    signal_type: str = Field(default="technical", description="信号类型")
+    strategy_pattern: str = Field(default="", description="策略模式/战法名称")
+    confidence: float = Field(default=0.0, description="置信度")
+    entry_method: str = Field(default="market", description="入场方式")
+    stop_loss: Optional[float] = Field(None, description="止损价")
+    take_profit: Optional[float] = Field(None, description="止盈价")
+    sectors: str = Field(default="", description="所属板块")
+    sentiment_phase: str = Field(default="", description="情绪阶段")
+    expected_hold_days: Optional[int] = Field(None, description="预期持有天数")
+    time_horizon: str = Field(default="", description="时间周期: short/mid/long")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -30,7 +41,17 @@ class CreateRecommendationRequest(BaseModel):
             "signal": "buy",
             "source": "deep_analysis",
             "source_task_id": "abc123def456",
-            "reason": "多维度分析看多信号，技术面+基本面共振"
+            "reason": "多维度分析看多信号，技术面+基本面共振",
+            "signal_type": "breakout",
+            "strategy_pattern": "首板挖掘",
+            "confidence": 85.0,
+            "entry_method": "limit",
+            "stop_loss": 11.50,
+            "take_profit": 14.00,
+            "sectors": "银行",
+            "sentiment_phase": "修复期",
+            "expected_hold_days": 5,
+            "time_horizon": "short",
         }
     })
 
@@ -98,6 +119,17 @@ class RecommendationRecordSchema(BaseModel):
     notes: str
     created_at: str
     updated_at: str
+    # 交易信号增强字段
+    signal_type: str = "technical"
+    strategy_pattern: str = ""
+    confidence: float = 0.0
+    entry_method: str = "market"
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    sectors: str = ""
+    sentiment_phase: str = ""
+    expected_hold_days: Optional[int] = None
+    time_horizon: str = ""
 
 
 class RecommendationListResponse(BaseModel):
@@ -159,3 +191,28 @@ class SummaryResponse(BaseModel):
     """自省总结响应."""
     stats: RecommendationStatsResponse
     summary: str
+
+
+# ── 共同点分析 ────────────────────────────────────────────────────────────────
+
+
+class CommonalityTag(BaseModel):
+    """共同点标签."""
+    key: str = Field(..., description="标签键，用于过滤")
+    label: str = Field(..., description="标签显示名")
+    value: str = Field(..., description="标签值")
+    count: int = Field(..., description="包含该标签的记录数")
+    category: str = Field(..., description="分类: board/signal/source/price_range/time_window/keyword")
+
+
+class CommonalityGroup(BaseModel):
+    """共同点分组."""
+    category: str = Field(..., description="分组类别名")
+    category_label: str = Field(..., description="分组类别显示名")
+    tags: List[CommonalityTag] = Field(default_factory=list, description="该类别下的标签列表")
+
+
+class CommonalityResponse(BaseModel):
+    """共同点分析响应."""
+    total_analyzed: int = Field(..., description="分析的总记录数")
+    groups: List[CommonalityGroup] = Field(default_factory=list, description="共同点分组列表")

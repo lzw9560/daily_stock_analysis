@@ -591,7 +591,7 @@ export const sealPlateApi = {
     if (date) queryParams.date = date;
 
     const response = await apiClient.get<ComprehensiveRecommendationResponse>(
-      '/api/v1/comprehensive',
+      '/api/v1/seal-plate/comprehensive',
       { params: queryParams }
     );
     return toCamelCase<ComprehensiveRecommendationResponse>(response.data);
@@ -602,7 +602,7 @@ export const sealPlateApi = {
    */
   getWinRateBrief: async (): Promise<WinRateBriefResponse> => {
     const response = await apiClient.get<WinRateBriefResponse>(
-      '/api/v1/comprehensive/win-rate-brief'
+      '/api/v1/seal-plate/win-rate-brief'
     );
     return toCamelCase<WinRateBriefResponse>(response.data);
   },
@@ -612,7 +612,7 @@ export const sealPlateApi = {
    */
   removePositionStock: async (code: string): Promise<{ success: boolean; code: string; excludedCount: number }> => {
     const response = await apiClient.delete(
-      `/api/v1/comprehensive/position/stocks/${code}`
+      `/api/v1/seal-plate/position/stocks/${code}`
     );
     return response.data;
   },
@@ -622,7 +622,7 @@ export const sealPlateApi = {
    */
   getExcludedStocks: async (): Promise<{ excludedCodes: string[]; count: number }> => {
     const response = await apiClient.get(
-      '/api/v1/comprehensive/position/stocks/excluded'
+      '/api/v1/seal-plate/position/stocks/excluded'
     );
     return response.data;
   },
@@ -632,7 +632,7 @@ export const sealPlateApi = {
    */
   restorePositionStock: async (code: string): Promise<{ success: boolean; code: string }> => {
     const response = await apiClient.delete(
-      `/api/v1/comprehensive/position/stocks/excluded/${code}`
+      `/api/v1/seal-plate/position/stocks/excluded/${code}`
     );
     return response.data;
   },

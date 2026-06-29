@@ -103,7 +103,7 @@ function riskColor(level: string): string {
     case '中风险': case 'medium': return 'bg-amber-100 text-amber-700 border-amber-200';
     case '高风险': case 'high': return 'bg-rose-100 text-rose-700 border-rose-200';
     case '极高风险': case 'critical': return 'bg-red-100 text-red-700 border-red-200';
-    default: return 'bg-slate-100 text-slate-600 border-slate-200';
+    default: return 'bg-card text-secondary-text border-border';
   }
 }
 
@@ -133,7 +133,7 @@ function circuitColor(level: string): string {
     case 'yellow': return 'text-amber-500';
     case 'red': return 'text-rose-500';
     case 'black': return 'text-red-700';
-    default: return 'text-slate-400';
+    default: return 'text-muted-text';
   }
 }
 
@@ -163,18 +163,18 @@ function ProgressBar({ value, max = 100, color = 'teal', label = '' }: { value: 
     indigo: 'bg-indigo-400',
     sky: 'bg-sky-400',
     orange: 'bg-orange-400',
-    slate: 'bg-slate-400',
+    slate: 'bg-muted',
   };
 
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+      <div className="flex-1 h-2 bg-card dark:bg-card rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${colorMap[color] || 'bg-slate-400'}`}
+          className={`h-full rounded-full transition-all duration-500 ${colorMap[color] || 'bg-muted'}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      {label && <span className="text-xs text-slate-500 font-mono min-w-[3rem] text-right">{label}</span>}
+      {label && <span className="text-xs text-muted-text font-mono min-w-[3rem] text-right">{label}</span>}
     </div>
   );
 }
@@ -188,14 +188,14 @@ function CollapsibleSection({ title, icon, defaultOpen = true, children }: {
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+    <div className="border border-border dark:border-border rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 px-5 py-3.5 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        className="w-full flex items-center gap-3 px-5 py-3.5 bg-surface-1 dark:bg-elevated/50 hover:bg-card dark:hover:bg-elevated transition-colors"
       >
         <span className="text-teal-500">{icon}</span>
-        <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm flex-1 text-left">{title}</span>
-        {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        <span className="font-semibold text-foreground dark:text-foreground text-sm flex-1 text-left">{title}</span>
+        {open ? <ChevronUp className="w-4 h-4 text-muted-text" /> : <ChevronDown className="w-4 h-4 text-muted-text" />}
       </button>
       {open && <div className="p-5">{children}</div>}
     </div>
@@ -295,10 +295,10 @@ export default function ComprehensiveRecommendationPage() {
       <div className="p-6">
         <Card className="p-8 text-center">
           <AlertTriangle className="w-12 h-12 text-rose-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-slate-700 mb-2">数据加载失败</h3>
-          <p className="text-slate-500 mb-4">{error}</p>
+          <h3 className="text-lg font-semibold text-foreground mb-2">数据加载失败</h3>
+          <p className="text-muted-text mb-4">{error}</p>
           <div className="flex items-center justify-center gap-3">
-            <Calendar className="w-4 h-4 text-slate-400" />
+            <Calendar className="w-4 h-4 text-muted-text" />
             <input
               type="date"
               value={selectedDate ? formatDate(selectedDate) : ''}
@@ -307,7 +307,7 @@ export default function ComprehensiveRecommendationPage() {
                 setSelectedDate(d);
               }}
               max={new Date().toISOString().split('T')[0]}
-              className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm"
+              className="px-3 py-2 bg-white dark:bg-elevated border border-border dark:border-border rounded-lg text-sm"
             />
             <Button onClick={() => fetchData(selectedDate)} variant="primary">
               <RefreshCw className="w-4 h-4 mr-2" /> 重新加载
@@ -361,15 +361,15 @@ export default function ComprehensiveRecommendationPage() {
             <Brain className="w-6 h-6 text-teal-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">综合推荐系统</h1>
-            <p className="text-sm text-slate-500">
+            <h1 className="text-2xl font-bold text-foreground dark:text-foreground">综合推荐系统</h1>
+            <p className="text-sm text-muted-text">
               {validData.label} · {formatDate(validData.date)} · 多维度智能分析
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <Calendar className="w-4 h-4 text-slate-400" />
+          <Calendar className="w-4 h-4 text-muted-text" />
           <input
             type="date"
             value={(selectedDate || validData.date)
@@ -381,7 +381,7 @@ export default function ComprehensiveRecommendationPage() {
               if (d) fetchData(d);
             }}
             max={new Date().toISOString().split('T')[0]}
-            className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm"
+            className="px-3 py-2 bg-white dark:bg-elevated border border-border dark:border-border rounded-lg text-sm"
           />
           <Button onClick={() => fetchData(selectedDate)} disabled={loading} variant="outline">
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> 刷新
@@ -392,40 +392,40 @@ export default function ComprehensiveRecommendationPage() {
       {/* ============ 情绪 & 热度 概览 ============ */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card className="p-4 text-center">
-          <p className="text-xs text-slate-400 mb-1">情绪指数</p>
+          <p className="text-xs text-muted-text mb-1">情绪指数</p>
           <p className="text-2xl font-bold text-teal-600">{validData.sentimentIndex}</p>
-          <p className="text-xs text-slate-500 mt-1">{sentimentEmoji(validData.sentimentPhase)} {validData.sentimentPhase}</p>
+          <p className="text-xs text-muted-text mt-1">{sentimentEmoji(validData.sentimentPhase)} {validData.sentimentPhase}</p>
         </Card>
         <Card className="p-4 text-center">
-          <p className="text-xs text-slate-400 mb-1">市场热度</p>
+          <p className="text-xs text-muted-text mb-1">市场热度</p>
           <p className="text-2xl font-bold text-amber-600">{validData.marketHeatScore}</p>
           <div className="mt-1"><ProgressBar value={validData.marketHeatScore} color="amber" /></div>
         </Card>
         <Card className="p-4 text-center">
-          <p className="text-xs text-slate-400 mb-1">涨停数量</p>
+          <p className="text-xs text-muted-text mb-1">涨停数量</p>
           <p className="text-2xl font-bold text-primary">{validData.totalLimitUp}</p>
-          <p className="text-xs text-slate-500 mt-1">只</p>
+          <p className="text-xs text-muted-text mt-1">只</p>
         </Card>
         <Card className="p-4 text-center">
-          <p className="text-xs text-slate-400 mb-1">资金情绪</p>
+          <p className="text-xs text-muted-text mb-1">资金情绪</p>
           <p className="text-xl font-bold text-emerald-600">{validData.fundSentiment}</p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-muted-text mt-1">
             {validData.fundSentiment.includes('乐观') ? '🟢' : validData.fundSentiment.includes('谨慎') ? '🟡' : '➖'}
           </p>
         </Card>
         {winBrief && (
           <>
             <Card className="p-4 text-center">
-              <p className="text-xs text-slate-400 mb-1">总胜率</p>
+              <p className="text-xs text-muted-text mb-1">总胜率</p>
               <p className={`text-2xl font-bold ${winBrief.winRate >= 50 ? 'text-emerald-600' : 'text-rose-600'}`}>
                 {winBrief.winRate}%
               </p>
-              <p className="text-xs text-slate-500 mt-1">{winBrief.won}赢/{winBrief.lost}输</p>
+              <p className="text-xs text-muted-text mt-1">{winBrief.won}赢/{winBrief.lost}输</p>
             </Card>
             <Card className="p-4 text-center">
-              <p className="text-xs text-slate-400 mb-1">近10笔/均收益</p>
+              <p className="text-xs text-muted-text mb-1">近10笔/均收益</p>
               <p className="text-2xl font-bold text-primary">{winBrief.rolling10}%</p>
-              <p className="text-xs text-slate-500 mt-1">{winBrief.avgReturn > 0 ? '+' : ''}{winBrief.avgReturn}%</p>
+              <p className="text-xs text-muted-text mt-1">{winBrief.avgReturn > 0 ? '+' : ''}{winBrief.avgReturn}%</p>
             </Card>
           </>
         )}
@@ -458,7 +458,7 @@ export default function ComprehensiveRecommendationPage() {
       {/* ============ 1. 买卖点位与意愿分析 ============ */}
       <CollapsibleSection title="1. 买卖点位与意愿分析" icon={<Activity className="w-5 h-5" />}>
         {validData.buySellAnalyses.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-4">暂无买卖分析数据</p>
+          <p className="text-sm text-muted-text text-center py-4">暂无买卖分析数据</p>
         ) : (
           <div className="space-y-4">
             {validData.buySellAnalyses.map((item: BuySellAnalysis) => (
@@ -488,7 +488,7 @@ export default function ComprehensiveRecommendationPage() {
                       <div>
                         <p className="text-xs font-medium text-emerald-600 mb-1">买入信号</p>
                         {item.buySignals.map((s, i) => (
-                          <p key={i} className="text-xs text-slate-600 flex items-center gap-1">
+                          <p key={i} className="text-xs text-secondary-text flex items-center gap-1">
                             <span className="text-emerald-400">+</span>{s}
                           </p>
                         ))}
@@ -496,7 +496,7 @@ export default function ComprehensiveRecommendationPage() {
                       <div>
                         <p className="text-xs font-medium text-rose-600 mb-1">卖出信号</p>
                         {item.sellSignals.map((s, i) => (
-                          <p key={i} className="text-xs text-slate-600 flex items-center gap-1">
+                          <p key={i} className="text-xs text-secondary-text flex items-center gap-1">
                             <span className="text-rose-400">-</span>{s}
                           </p>
                         ))}
@@ -505,40 +505,40 @@ export default function ComprehensiveRecommendationPage() {
                   </div>
 
                   {/* 右侧：关键价格 */}
-                  <div className="lg:w-64 bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 space-y-2 flex-shrink-0">
-                    <p className="text-xs font-medium text-slate-500 mb-2">关键价位</p>
+                  <div className="lg:w-64 bg-surface-1 dark:bg-elevated/50 rounded-lg p-4 space-y-2 flex-shrink-0">
+                    <p className="text-xs font-medium text-muted-text mb-2">关键价位</p>
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">买入区间</span>
+                      <span className="text-muted-text">买入区间</span>
                       <span className="font-mono text-teal-600">{item.buyRangeLow} - {item.buyRangeHigh}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">理想买入</span>
+                      <span className="text-muted-text">理想买入</span>
                       <span className="font-mono font-semibold text-teal-700">{item.idealBuyPrice}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">止损价</span>
+                      <span className="text-muted-text">止损价</span>
                       <span className="font-mono text-rose-600">{item.stopLossPrice}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">短线止盈</span>
+                      <span className="text-muted-text">短线止盈</span>
                       <span className="font-mono text-emerald-600">{item.takeProfitShort}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">长线止盈</span>
+                      <span className="text-muted-text">长线止盈</span>
                       <span className="font-mono text-emerald-600">{item.takeProfitLong}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* 进出策略 */}
-                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700 flex gap-4 text-xs">
+                <div className="mt-4 pt-3 border-t border-dim dark:border-border flex gap-4 text-xs">
                   <div className="flex-1">
                     <span className="text-teal-600 font-medium">进场: </span>
-                    <span className="text-slate-600">{item.entryStrategy}</span>
+                    <span className="text-secondary-text">{item.entryStrategy}</span>
                   </div>
                   <div className="flex-1">
                     <span className="text-rose-600 font-medium">离场: </span>
-                    <span className="text-slate-600">{item.exitStrategy}</span>
+                    <span className="text-secondary-text">{item.exitStrategy}</span>
                   </div>
                 </div>
               </Card>
@@ -550,37 +550,37 @@ export default function ComprehensiveRecommendationPage() {
       {/* ============ 2. 短中长期投资建议 ============ */}
       <CollapsibleSection title="2. 短/中/长期投资建议" icon={<Layers className="w-5 h-5" />} defaultOpen={false}>
         {validData.termAdvices.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-4">暂无投资建议</p>
+          <p className="text-sm text-muted-text text-center py-4">暂无投资建议</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {validData.termAdvices.map((advice: TermAdvice) => {
               const badge = confidenceBadge(advice.confidence);
               return (
                 <Card key={advice.term} className="text-center hover:shadow-lg transition-shadow">
-                  <p className="text-xs text-slate-400 mb-2">{advice.label}</p>
+                  <p className="text-xs text-muted-text mb-2">{advice.label}</p>
                   <div className="text-3xl mb-2">
                     {advice.action.includes('买入') || advice.action.includes('加仓') ? '📈'
                       : advice.action.includes('卖出') || advice.action.includes('减仓') ? '📉'
                       : advice.action.includes('持有') ? '📊' : '➖'}
                   </div>
-                  <p className="font-semibold text-slate-700 text-lg mb-2">{advice.action}</p>
+                  <p className="font-semibold text-foreground text-lg mb-2">{advice.action}</p>
                   <div className="flex items-center justify-center gap-2 mb-3">
                     <Badge variant={badge.variant}>{badge.label}</Badge>
                     <span className={`text-xs px-2 py-0.5 rounded border ${riskColor(advice.riskLevel)}`}>
                       {advice.riskLevel}
                     </span>
                   </div>
-                  <div className="space-y-1.5 text-sm text-slate-500">
+                  <div className="space-y-1.5 text-sm text-muted-text">
                     <div className="flex justify-between"><span>目标收益</span><span className="text-emerald-600 font-mono">+{advice.targetReturnPct}%</span></div>
                     <div className="flex justify-between"><span>持有周期</span><span className="font-mono">{advice.holdDays}</span></div>
                   </div>
-                  <p className="text-xs text-slate-500 mt-3 leading-relaxed">{advice.strategyDesc}</p>
+                  <p className="text-xs text-muted-text mt-3 leading-relaxed">{advice.strategyDesc}</p>
                   {advice.keyLevels.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
-                      <p className="text-xs text-slate-400 mb-1">关键位</p>
+                    <div className="mt-3 pt-3 border-t border-dim dark:border-border">
+                      <p className="text-xs text-muted-text mb-1">关键位</p>
                       <div className="flex flex-wrap gap-1 justify-center">
                         {advice.keyLevels.map((kl, i) => (
-                          <span key={i} className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded">{kl}</span>
+                          <span key={i} className="text-xs px-2 py-0.5 bg-card dark:bg-card rounded">{kl}</span>
                         ))}
                       </div>
                     </div>
@@ -601,12 +601,12 @@ export default function ComprehensiveRecommendationPage() {
               <p className="text-sm font-semibold text-emerald-600 mb-3">🔥 当前热门板块</p>
               <div className="space-y-2">
                 {validData.sectorRotation.hotSectors.length === 0 ? (
-                  <p className="text-xs text-slate-400">暂无热门板块</p>
+                  <p className="text-xs text-muted-text">暂无热门板块</p>
                 ) : (
                   validData.sectorRotation.hotSectors.map((s, i) => (
                     <div key={i} className="flex items-center justify-between text-sm">
-                      <span className="text-slate-700">{s.name}</span>
-                      <span className="text-slate-400 text-xs">{s.count}只涨停</span>
+                      <span className="text-foreground">{s.name}</span>
+                      <span className="text-muted-text text-xs">{s.count}只涨停</span>
                     </div>
                   ))
                 )}
@@ -618,11 +618,11 @@ export default function ComprehensiveRecommendationPage() {
               <p className="text-sm font-semibold text-amber-600 mb-3">🌡️ 正在降温</p>
               <div className="space-y-2">
                 {validData.sectorRotation.coolingSectors.length === 0 ? (
-                  <p className="text-xs text-slate-400">暂无降温板块</p>
+                  <p className="text-xs text-muted-text">暂无降温板块</p>
                 ) : (
                   validData.sectorRotation.coolingSectors.map((s, i) => (
                     <div key={i} className="flex items-center justify-between text-sm">
-                      <span className="text-slate-700">{s.name}</span>
+                      <span className="text-foreground">{s.name}</span>
                       <span className="text-rose-400 text-xs font-mono">
                         {s.netOutflow ? `-${(s.netOutflow / 10000).toFixed(1)}亿` : s.count ? `${s.count}只` : '--'}
                       </span>
@@ -637,12 +637,12 @@ export default function ComprehensiveRecommendationPage() {
               <p className="text-sm font-semibold text-indigo-600 mb-3">💡 轮动潜力方向</p>
               <div className="space-y-2">
                 {validData.sectorRotation.nextPotentialSectors.length === 0 ? (
-                  <p className="text-xs text-slate-400">暂无潜力板块</p>
+                  <p className="text-xs text-muted-text">暂无潜力板块</p>
                 ) : (
                   validData.sectorRotation.nextPotentialSectors.map((s, i) => (
                     <div key={i} className="text-sm">
-                      <span className="text-slate-700">{s.name}</span>
-                      {s.reason && <p className="text-xs text-slate-400 mt-0.5">{s.reason}</p>}
+                      <span className="text-foreground">{s.name}</span>
+                      {s.reason && <p className="text-xs text-muted-text mt-0.5">{s.reason}</p>}
                     </div>
                   ))
                 )}
@@ -653,7 +653,7 @@ export default function ComprehensiveRecommendationPage() {
           {/* 资金流向 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">游资聚焦</p>
+              <p className="text-xs font-medium text-muted-text mb-2">游资聚焦</p>
               <div className="flex flex-wrap gap-1.5">
                 {validData.sectorRotation.hotMoneyFocus.map((f, i) => (
                   <Badge key={i} variant="warning" className="text-xs">{f}</Badge>
@@ -661,7 +661,7 @@ export default function ComprehensiveRecommendationPage() {
               </div>
             </div>
             <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">机构聚焦</p>
+              <p className="text-xs font-medium text-muted-text mb-2">机构聚焦</p>
               <div className="flex flex-wrap gap-1.5">
                 {validData.sectorRotation.institutionFocus.map((f, i) => (
                   <Badge key={i} variant="info" className="text-xs">{f}</Badge>
@@ -671,10 +671,10 @@ export default function ComprehensiveRecommendationPage() {
           </div>
 
           {validData.sectorRotation.suggestions.length > 0 && (
-            <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-              <p className="text-xs font-medium text-slate-500 mb-2">轮动建议</p>
+            <div className="mt-4 p-3 bg-surface-1 dark:bg-elevated/50 rounded-lg">
+              <p className="text-xs font-medium text-muted-text mb-2">轮动建议</p>
               {validData.sectorRotation.suggestions.map((s, i) => (
-                <p key={i} className="text-sm text-slate-600 flex items-center gap-1">
+                <p key={i} className="text-sm text-secondary-text flex items-center gap-1">
                   <ArrowRight className="w-3 h-3 text-teal-400" />{s}
                 </p>
               ))}
@@ -693,7 +693,7 @@ export default function ComprehensiveRecommendationPage() {
                   {validData.riskAssessment.overallRiskScore}
                 </div>
                 <div>
-                  <p className="text-sm text-slate-400">综合风险评分</p>
+                  <p className="text-sm text-muted-text">综合风险评分</p>
                   <span className={`inline-block px-2 py-0.5 rounded text-xs border ${riskColor(validData.riskAssessment.overallRiskLevel)}`}>
                     {validData.riskAssessment.overallRiskLevel}
                   </span>
@@ -702,23 +702,23 @@ export default function ComprehensiveRecommendationPage() {
 
               <div className="space-y-3">
                 <div>
-                  <div className="flex justify-between text-xs text-slate-500 mb-1"><span>市场风险</span><span>{validData.riskAssessment.marketRisk}/100</span></div>
+                  <div className="flex justify-between text-xs text-muted-text mb-1"><span>市场风险</span><span>{validData.riskAssessment.marketRisk}/100</span></div>
                   <ProgressBar value={validData.riskAssessment.marketRisk} color={validData.riskAssessment.marketRisk > 60 ? 'rose' : 'amber'} />
                 </div>
                 <div>
-                  <div className="flex justify-between text-xs text-slate-500 mb-1"><span>仓位风险</span><span>{validData.riskAssessment.positionRisk}/100</span></div>
+                  <div className="flex justify-between text-xs text-muted-text mb-1"><span>仓位风险</span><span>{validData.riskAssessment.positionRisk}/100</span></div>
                   <ProgressBar value={validData.riskAssessment.positionRisk} color={validData.riskAssessment.positionRisk > 60 ? 'rose' : 'amber'} />
                 </div>
                 <div>
-                  <div className="flex justify-between text-xs text-slate-500 mb-1"><span>板块集中度</span><span>{validData.riskAssessment.sectorConcentrationRisk}/100</span></div>
+                  <div className="flex justify-between text-xs text-muted-text mb-1"><span>板块集中度</span><span>{validData.riskAssessment.sectorConcentrationRisk}/100</span></div>
                   <ProgressBar value={validData.riskAssessment.sectorConcentrationRisk} color={validData.riskAssessment.sectorConcentrationRisk > 50 ? 'rose' : 'teal'} />
                 </div>
                 <div>
-                  <div className="flex justify-between text-xs text-slate-500 mb-1"><span>流动性风险</span><span>{validData.riskAssessment.liquidityRisk}/100</span></div>
+                  <div className="flex justify-between text-xs text-muted-text mb-1"><span>流动性风险</span><span>{validData.riskAssessment.liquidityRisk}/100</span></div>
                   <ProgressBar value={validData.riskAssessment.liquidityRisk} color={validData.riskAssessment.liquidityRisk > 50 ? 'rose' : 'teal'} />
                 </div>
                 <div>
-                  <div className="flex justify-between text-xs text-slate-500 mb-1"><span>情绪风险</span><span>{validData.riskAssessment.sentimentRisk}/100</span></div>
+                  <div className="flex justify-between text-xs text-muted-text mb-1"><span>情绪风险</span><span>{validData.riskAssessment.sentimentRisk}/100</span></div>
                   <ProgressBar value={validData.riskAssessment.sentimentRisk} color={validData.riskAssessment.sentimentRisk > 50 ? 'rose' : 'teal'} />
                 </div>
               </div>
@@ -726,18 +726,18 @@ export default function ComprehensiveRecommendationPage() {
 
             <div className="space-y-4">
               <div>
-                <p className="text-sm font-medium text-slate-600 mb-2">风险因素</p>
+                <p className="text-sm font-medium text-secondary-text mb-2">风险因素</p>
                 {validData.riskAssessment.riskFactors.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm text-slate-600 py-1">
+                  <div key={i} className="flex items-center gap-2 text-sm text-secondary-text py-1">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
                     {f}
                   </div>
                 ))}
               </div>
               <div>
-                <p className="text-sm font-medium text-slate-600 mb-2">风险缓解</p>
+                <p className="text-sm font-medium text-secondary-text mb-2">风险缓解</p>
                 {validData.riskAssessment.riskMitigations.map((m, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm text-slate-600 py-1">
+                  <div key={i} className="flex items-center gap-2 text-sm text-secondary-text py-1">
                     <CheckCircle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                     {m}
                   </div>
@@ -756,7 +756,7 @@ export default function ComprehensiveRecommendationPage() {
       {/* ============ 5. 个股风险分析 ============ */}
       <CollapsibleSection title="5. 个股风险剖析" icon={<AlertTriangle className="w-5 h-5" />} defaultOpen={false}>
         {validData.individualStockRisks.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-4">暂无个股风险数据</p>
+          <p className="text-sm text-muted-text text-center py-4">暂无个股风险数据</p>
         ) : (
           <div className="space-y-4">
             {validData.individualStockRisks.map((stock: IndividualStockRisk) => (
@@ -772,7 +772,7 @@ export default function ComprehensiveRecommendationPage() {
                     <span className={`text-lg font-bold ${stock.riskScore <= 30 ? 'text-emerald-500' : stock.riskScore <= 60 ? 'text-amber-500' : 'text-rose-500'}`}>
                       {stock.riskScore}
                     </span>
-                    <span className="text-xs text-slate-400">/100</span>
+                    <span className="text-xs text-muted-text">/100</span>
                   </div>
                 </div>
 
@@ -788,7 +788,7 @@ export default function ComprehensiveRecommendationPage() {
                     { label: '黑天鹅', val: stock.blackSwanRisk, color: stock.blackSwanRisk > 50 ? 'rose' : 'slate' },
                   ].map((item) => (
                     <div key={item.label} className="text-center">
-                      <p className="text-xs text-slate-400 mb-0.5">{item.label}</p>
+                      <p className="text-xs text-muted-text mb-0.5">{item.label}</p>
                       <ProgressBar value={item.val} color={item.color || (item.val > 50 ? 'amber' : 'emerald')} label={`${item.val}`} />
                     </div>
                   ))}
@@ -799,10 +799,10 @@ export default function ComprehensiveRecommendationPage() {
                   <div className="mb-3">
                     {stock.riskItems.map((ri, i) => (
                       <div key={i} className="flex items-center gap-2 text-xs py-0.5">
-                        <span className={ri.level === 'high' ? 'text-rose-500' : ri.level === 'medium' ? 'text-amber-500' : 'text-slate-400'}>
+                        <span className={ri.level === 'high' ? 'text-rose-500' : ri.level === 'medium' ? 'text-amber-500' : 'text-muted-text'}>
                           {ri.level === 'high' ? '🔴' : ri.level === 'medium' ? '🟡' : '🟢'}
                         </span>
-                        <span className="text-slate-600">{ri.type}: {ri.desc}</span>
+                        <span className="text-secondary-text">{ri.type}: {ri.desc}</span>
                       </div>
                     ))}
                   </div>
@@ -815,7 +815,7 @@ export default function ComprehensiveRecommendationPage() {
                       <span key={i} className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/10 text-indigo-600 rounded">{s}</span>
                     ))}
                   </div>
-                  <span className="text-slate-400">仓位上限 {stock.positionLimitPct}%</span>
+                  <span className="text-muted-text">仓位上限 {stock.positionLimitPct}%</span>
                 </div>
               </Card>
             ))}
@@ -831,7 +831,7 @@ export default function ComprehensiveRecommendationPage() {
             <div className="lg:col-span-1">
               <div className="relative w-40 h-40 mx-auto mb-4">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
-                  <circle cx="60" cy="60" r="50" fill="none" stroke="currentColor" strokeWidth="8" className="text-slate-100 dark:text-slate-700" />
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="currentColor" strokeWidth="8" className="text-border dark:text-card" />
                   <circle
                     cx="60" cy="60" r="50" fill="none"
                     strokeWidth="8"
@@ -841,26 +841,26 @@ export default function ComprehensiveRecommendationPage() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold text-slate-700">{validData.dynamicPosition.targetPositionPct}%</span>
-                  <span className="text-xs text-slate-400">目标仓位</span>
+                  <span className="text-3xl font-bold text-foreground">{validData.dynamicPosition.targetPositionPct}%</span>
+                  <span className="text-xs text-muted-text">目标仓位</span>
                 </div>
               </div>
 
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">当前仓位</span>
+                  <span className="text-muted-text">当前仓位</span>
                   <span className="font-mono">{validData.dynamicPosition.currentPositionPct}%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">最大仓位</span>
+                  <span className="text-muted-text">最大仓位</span>
                   <span className="font-mono text-rose-500">{validData.dynamicPosition.maxPositionPct}%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">现金储备</span>
+                  <span className="text-muted-text">现金储备</span>
                   <span className="font-mono text-emerald-500">{validData.dynamicPosition.cashReservePct}%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">总资金</span>
+                  <span className="text-muted-text">总资金</span>
                   <span className="font-mono">{(validData.dynamicPosition.totalCapital / 10000).toFixed(1)}万</span>
                 </div>
               </div>
@@ -875,9 +875,9 @@ export default function ComprehensiveRecommendationPage() {
             {/* 个股权重 */}
             <div className="lg:col-span-2">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium text-slate-600">个股配置权重</p>
+                <p className="text-sm font-medium text-secondary-text">个股配置权重</p>
                 {removedCodes.size > 0 && (
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-muted-text">
                     已排除 {removedCodes.size} 只（刷新后生效）
                   </span>
                 )}
@@ -891,12 +891,12 @@ export default function ComprehensiveRecommendationPage() {
                     const stockName = String(sw.name || '');
                     const isRemoving = removingCodes.has(stockCode);
                     return (
-                  <div key={i} className="bg-slate-50 dark:bg-slate-800/30 rounded-lg p-3 relative group">
+                  <div key={i} className="bg-surface-1 dark:bg-elevated/30 rounded-lg p-3 relative group">
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-slate-700">
+                        <span className="text-sm font-medium text-foreground">
                           {stockName}
-                          <span className="text-xs text-slate-400 font-mono ml-1.5">{stockCode}</span>
+                          <span className="text-xs text-muted-text font-mono ml-1.5">{stockCode}</span>
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -913,7 +913,7 @@ export default function ComprehensiveRecommendationPage() {
                     </div>
                     <ProgressBar value={weightPct} color={weightPct > 30 ? 'rose' : weightPct > 15 ? 'amber' : 'teal'} />
                     {(sw.suggestion || sw.suggestedPct !== undefined) && (
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="text-xs text-muted-text mt-1">
                         {String(sw.suggestion || `建议仓位 ${sw.suggestedPct}%`)}
                       </p>
                     )}
@@ -923,7 +923,7 @@ export default function ComprehensiveRecommendationPage() {
                 {validData.dynamicPosition.stockWeights.filter(
                   (sw: Record<string, unknown>) => !removedCodes.has(String(sw.code || ''))
                 ).length === 0 && (
-                  <p className="text-sm text-slate-400 text-center py-6">所有持仓标的已移除</p>
+                  <p className="text-sm text-muted-text text-center py-6">所有持仓标的已移除</p>
                 )}
               </div>
             </div>
@@ -934,21 +934,21 @@ export default function ComprehensiveRecommendationPage() {
       {/* ============ 7. 因子相关性监控 ============ */}
       <CollapsibleSection title="7. 多因子相关性监控" icon={<Activity className="w-5 h-5" />} defaultOpen={false}>
         {validData.factorCorrelations.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-4">暂无因子监控数据</p>
+          <p className="text-sm text-muted-text text-center py-4">暂无因子监控数据</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {validData.factorCorrelations.map((factor: FactorCorrelation, i: number) => (
               <Card key={i} className="text-center">
-                <p className="text-sm font-semibold text-slate-700 mb-2">{factor.factorName}</p>
+                <p className="text-sm font-semibold text-foreground mb-2">{factor.factorName}</p>
                 <div className="text-2xl font-bold text-primary mb-1">{factor.currentValue.toFixed(2)}</div>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Z-Score</span>
-                    <span className={`font-mono ${Math.abs(factor.zScore) > 2 ? 'text-rose-500' : 'text-slate-500'}`}>{factor.zScore.toFixed(2)}</span>
+                    <span className="text-muted-text">Z-Score</span>
+                    <span className={`font-mono ${Math.abs(factor.zScore) > 2 ? 'text-rose-500' : 'text-muted-text'}`}>{factor.zScore.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">市场相关性</span>
-                    <span className="font-mono text-slate-500">{(factor.correlationWithMarket ?? 0).toFixed(2)}</span>
+                    <span className="text-muted-text">市场相关性</span>
+                    <span className="font-mono text-muted-text">{(factor.correlationWithMarket ?? 0).toFixed(2)}</span>
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-center gap-2">
@@ -974,14 +974,14 @@ export default function ComprehensiveRecommendationPage() {
       {/* ============ 8. 黑天鹅压力测试 & 熔断 ============ */}
       <CollapsibleSection title="8. 黑天鹅压力测试与熔断机制" icon={<Zap className="w-5 h-5" />} defaultOpen={false}>
         {validData.stressTestResults.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-4">暂无压力测试数据</p>
+          <p className="text-sm text-muted-text text-center py-4">暂无压力测试数据</p>
         ) : (
           <div className="space-y-4">
             {validData.stressTestResults.map((test: StressTestResult, i: number) => (
                <Card key={i} className={`ring-1 ${test.circuitBreakerTriggered ? 'ring-rose-400' : 'ring-emerald-400'}`}>
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="font-semibold text-slate-700">{test.scenario}</p>
+                    <p className="font-semibold text-foreground">{test.scenario}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className={`text-sm font-medium ${circuitColor(test.circuitBreakerLevel)}`}>
                         {circuitLabel(test.circuitBreakerLevel)}
@@ -993,18 +993,18 @@ export default function ComprehensiveRecommendationPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-bold text-rose-500">-{test.maxDrawdownPct}%</p>
-                    <p className="text-xs text-slate-400">最大回撤</p>
+                    <p className="text-xs text-muted-text">最大回撤</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4 mb-3">
-                  <div className="text-center p-2 bg-slate-50 dark:bg-slate-800/30 rounded">
-                    <p className="text-xs text-slate-400">组合损失</p>
+                  <div className="text-center p-2 bg-surface-1 dark:bg-elevated/30 rounded">
+                    <p className="text-xs text-muted-text">组合损失</p>
                     <p className="text-lg font-semibold text-rose-500">-{test.portfolioLossPct}%</p>
                   </div>
-                  <div className="text-center p-2 bg-slate-50 dark:bg-slate-800/30 rounded">
-                    <p className="text-xs text-slate-400">预估恢复</p>
-                    <p className="text-lg font-semibold text-slate-600">{test.recoveryDaysEst}天</p>
+                  <div className="text-center p-2 bg-surface-1 dark:bg-elevated/30 rounded">
+                    <p className="text-xs text-muted-text">预估恢复</p>
+                    <p className="text-lg font-semibold text-secondary-text">{test.recoveryDaysEst}天</p>
                   </div>
                   <div className="text-center p-2 bg-indigo-50 dark:bg-indigo-900/10 rounded">
                     <p className="text-xs text-indigo-400">建议动作</p>
@@ -1014,11 +1014,11 @@ export default function ComprehensiveRecommendationPage() {
 
                 {test.impactOnHoldings.length > 0 && (
                   <div>
-                    <p className="text-xs text-slate-400 mb-2">持仓影响</p>
+                    <p className="text-xs text-muted-text mb-2">持仓影响</p>
                     <div className="space-y-1">
                       {test.impactOnHoldings.map((imp, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs bg-slate-50 dark:bg-slate-800/20 rounded px-2 py-1">
-                          <span className="text-slate-600"><StockNameDisplay name={imp.name} code={imp.code} codeClassName="text-xs" /></span>
+                        <div key={i} className="flex items-center justify-between text-xs bg-surface-1 dark:bg-elevated/20 rounded px-2 py-1">
+                          <span className="text-secondary-text"><StockNameDisplay name={imp.name} code={imp.code} codeClassName="text-xs" /></span>
                           <span className="font-mono text-rose-500">-{imp.loss}%</span>
                         </div>
                       ))}
@@ -1036,33 +1036,33 @@ export default function ComprehensiveRecommendationPage() {
         <CollapsibleSection title="胜率回溯概览" icon={<BarChart3 className="w-5 h-5" />} defaultOpen={false}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <Card className="p-4 text-center">
-              <p className="text-xs text-slate-400">总推荐</p>
-              <p className="text-xl font-bold text-slate-700">{winBrief.total}</p>
+              <p className="text-xs text-muted-text">总推荐</p>
+              <p className="text-xl font-bold text-foreground">{winBrief.total}</p>
             </Card>
             <Card className="p-4 text-center">
-              <p className="text-xs text-slate-400">已结算</p>
+              <p className="text-xs text-muted-text">已结算</p>
               <p className="text-xl font-bold text-indigo-600">{winBrief.settled}</p>
             </Card>
             <Card className="p-4 text-center">
-              <p className="text-xs text-slate-400">胜率</p>
+              <p className="text-xs text-muted-text">胜率</p>
               <p className={`text-xl font-bold ${winBrief.winRate >= 50 ? 'text-emerald-600' : 'text-rose-600'}`}>
                 {winBrief.winRate}%
               </p>
-              <p className="text-xs text-slate-400 mt-1">趋势: {winBrief.trend === 'improving' ? '📈 上升' : winBrief.trend === 'declining' ? '📉 下降' : '➡️ 稳定'}</p>
+              <p className="text-xs text-muted-text mt-1">趋势: {winBrief.trend === 'improving' ? '📈 上升' : winBrief.trend === 'declining' ? '📉 下降' : '➡️ 稳定'}</p>
             </Card>
             <Card className="p-4 text-center">
-              <p className="text-xs text-slate-400">待结算</p>
+              <p className="text-xs text-muted-text">待结算</p>
               <p className="text-xl font-bold text-amber-600">{winBrief.pending}</p>
             </Card>
           </div>
 
           {Object.keys(winBrief.bySector).length > 0 && (
             <div>
-              <p className="text-sm font-medium text-slate-600 mb-3">板块胜率排行</p>
+              <p className="text-sm font-medium text-secondary-text mb-3">板块胜率排行</p>
               <div className="space-y-2">
                 {Object.entries(winBrief.bySector).map(([sector, sectorData]) => (
                   <div key={sector} className="flex items-center gap-3">
-                    <span className="text-sm text-slate-600 w-24 truncate">{sector}</span>
+                    <span className="text-sm text-secondary-text w-24 truncate">{sector}</span>
                     <div className="flex-1">
                       <ProgressBar
                         value={sectorData.rate}
@@ -1070,7 +1070,7 @@ export default function ComprehensiveRecommendationPage() {
                         label={`${sectorData.rate.toFixed(0)}%`}
                       />
                     </div>
-                    <span className="text-xs text-slate-400">{sectorData.won}/{sectorData.total}</span>
+                    <span className="text-xs text-muted-text">{sectorData.won}/{sectorData.total}</span>
                   </div>
                 ))}
               </div>
@@ -1080,7 +1080,7 @@ export default function ComprehensiveRecommendationPage() {
       )}
 
       {/* Footer */}
-      <div className="text-center text-sm text-slate-400">
+      <div className="text-center text-sm text-muted-text">
         综合推荐生成时间: {validData.generatedAt ? new Date(validData.generatedAt).toLocaleString('zh-CN') : '--'}
       </div>
     </div>

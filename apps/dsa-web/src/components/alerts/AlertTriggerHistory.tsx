@@ -40,41 +40,66 @@ export const AlertTriggerHistory: React.FC<AlertTriggerHistoryProps> = ({ trigge
         />
       ) : null}
       {!isLoading && triggers.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[780px] text-left text-sm">
-            <thead className="border-b border-border/60 text-xs uppercase text-muted-text">
-              <tr>
-                <th className="px-3 py-2 font-medium">状态</th>
-                <th className="px-3 py-2 font-medium">目标</th>
-                <th className="px-3 py-2 font-medium">观察值</th>
-                <th className="px-3 py-2 font-medium">阈值</th>
-                <th className="px-3 py-2 font-medium">数据源</th>
-                <th className="px-3 py-2 font-medium">数据时间</th>
-                <th className="px-3 py-2 font-medium">原因</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/40">
-              {triggers.map((trigger) => (
-                <tr key={trigger.id} className="align-top">
-                  <td className="px-3 py-3">
-                    <Badge variant={statusVariant(trigger.status)}>
-                      {statusLabel[trigger.status] ?? trigger.status}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-3 font-mono text-secondary-text">{trigger.target}</td>
-                  <td className="px-3 py-3 text-secondary-text">{formatNullable(trigger.observedValue)}</td>
-                  <td className="px-3 py-3 text-secondary-text">{formatNullable(trigger.threshold)}</td>
-                  <td className="px-3 py-3 text-secondary-text">{formatNullable(trigger.dataSource)}</td>
-                  <td className="px-3 py-3 text-xs text-secondary-text">
-                    {formatDateTime(trigger.dataTimestamp ?? trigger.triggeredAt)}
-                  </td>
-                  <td className="px-3 py-3 text-secondary-text">
-                    {trigger.reason || trigger.diagnostics || '--'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="relative">
+          {/* 时间线视图 */}
+          <div className="relative pl-6 space-y-0">
+            {/* Vertical line */}
+            <div className="absolute left-[11px] top-3 bottom-3 w-px bg-border/60" />
+            {triggers.map((trigger) => (
+              <div key={trigger.id} className="relative pb-4 last:pb-0">
+                {/* Timeline dot */}
+                <div
+                  className={`absolute -left-[19px] top-2 w-3 h-3 rounded-full border-2 border-background ${
+                    trigger.status === 'triggered'
+                      ? 'bg-success'
+                      : trigger.status === 'failed'
+                      ? 'bg-danger'
+                      : trigger.status === 'degraded'
+                      ? 'bg-warning'
+                      : 'bg-muted-foreground'
+                  }`}
+                />
+
+                {/* Card-like timeline item */}
+                <div className="rounded-lg border border-border/40 bg-card/60 p-3 hover:bg-card/80 transition-colors">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={statusVariant(trigger.status)}>
+                        {statusLabel[trigger.status] ?? trigger.status}
+                      </Badge>
+                      <span className="font-mono text-sm font-medium">{trigger.target}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDateTime(trigger.dataTimestamp ?? trigger.triggeredAt)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">观察值</span>
+                      <p className="font-mono">{formatNullable(trigger.observedValue)}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">阈值</span>
+                      <p className="font-mono">{formatNullable(trigger.threshold)}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">数据源</span>
+                      <p>{formatNullable(trigger.dataSource)}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">原因</span>
+                      <p className="truncate">{trigger.reason || trigger.diagnostics || '--'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Show count */}
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            共 {triggers.length} 条触发记录
+          </p>
         </div>
       ) : null}
     </Card>

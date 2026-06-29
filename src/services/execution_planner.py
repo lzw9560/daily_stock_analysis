@@ -270,6 +270,53 @@ class ExecutionPlanner:
         self.sizer = RiskSizer()
         self.writer = AtomicExecutionWriter()
 
+    def generate_execution_plan(
+        self,
+        *,
+        symbol: str,
+        spot: float,
+        vol: float = 0.3,
+        horizon_days: int = 5,
+        total_capital: float = 100_000,
+        side: str = "buy",
+        paths: int = 10_000,
+        model: str = "gbm",
+        dry_run: bool = True,
+    ) -> Dict[str, Any]:
+        """生成执行计划（适配 enhanced_recommendation API 的接口）。
+        
+        与 plan() 的区别：自动根据 total_capital 推算 quantity，
+        默认使用保守的 win_rate/payoff_ratio 假设。
+        """
+        # 根据总资金和现价推算合理数量（A股100股整数倍）
+        quantity = max(100, int(total_capital / max(spot, 0.01) / 10) * 100)
+        
+        # 使用 vol 作为波动率输入
+        drift_estimate = 0.0  # 默认无漂移假设
+        # 保守的胜率和盈亏比估计
+        win_rate_est = 0.5
+        payoff_ratio_est = 1.5
+        
+        return self.plan(
+            symbol=symbol,
+            side=side,
+            spot=spot,
+            quantity=quantity,
+            horizon_days=horizon_days,
+            paths=paths,
+            model=model,
+            drift=drift_estimate,
+            vol=vol,
+            win_rate=win_rate_est,
+            payoff_ratio=payoff_ratio_est,
+            max_position_pct=30.0,
+            dry_run=dry_run,
+            metadata={
+                "total_capital": total_capital,
+                "generated_by": "generate_execution_plan",
+            },
+        )
+
     def plan(
         self,
         *,

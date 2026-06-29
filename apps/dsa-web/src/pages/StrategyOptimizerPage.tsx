@@ -549,8 +549,8 @@ const StrategyOptimizerPage: React.FC = () => {
     <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-6 animate-slide-in-right">
       {/* ── 页头 ── */}
       <PageHeader
-        eyebrow="策略优化"
-        title="策略优化中心"
+        eyebrow="优化"
+        title="策略优化"
         description="基于回测与推荐追踪数据的自适应策略优化、信号过滤与交易纪律"
         actions={
           <div className="flex items-center gap-3">

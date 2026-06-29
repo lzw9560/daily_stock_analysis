@@ -85,6 +85,7 @@ class ScreeningService:
 
         for strategy in strategies:
             try:
+                self._last_start_time = time.time()
                 strategy_result = self._run_single_strategy(
                     strategy=strategy,
                     market=market,
@@ -98,6 +99,7 @@ class ScreeningService:
                     all_candidate_codes.extend(codes)
             except Exception as exc:
                 logger.exception("策略 %s 执行失败: %s", strategy, exc)
+                duration = time.time() - self._last_start_time
                 results.append({
                     "strategy": strategy,
                     "market": market,
@@ -105,6 +107,7 @@ class ScreeningService:
                     "error": str(exc),
                     "record_id": None,
                     "candidate_count": 0,
+                    "duration_seconds": round(duration, 2),
                 })
 
         # Deduplicate codes for backtest
@@ -153,8 +156,33 @@ class ScreeningService:
     ) -> Dict[str, Any]:
         """Execute AlphaSift screen for one strategy and persist results."""
         start_time = time.time()
+        log_capture: List[str] = []
 
-        # Import adapter from shared layer (avoids reverse-dependency on api/)
+        class LogCapture(logging.Handler):
+            def emit(self, record):
+                try:
+                    msg = self.format(record)
+                    log_capture.append(msg)
+                except Exception:
+                    pass
+
+        capture_handler = LogCapture()
+        capture_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+        logger.addHandler(capture_handler)
+        try:
+            return self._execute_screening(strategy, market, max_results, screening_date, log_capture)
+        finally:
+            logger.removeHandler(capture_handler)
+
+    def _execute_screening(
+        self,
+        strategy: str,
+        market: str,
+        max_results: int,
+        screening_date: date,
+        log_capture: List[str],
+    ) -> Dict[str, Any]:
+        """Core screening execution with log capture."""
         try:
             from src.shared.alphasift_core import (
                 _get_dsa_adapter,
@@ -167,22 +195,20 @@ class ScreeningService:
         from src.config import Config
         config = Config.get_instance()
 
-        # Check if alphasift is enabled
         if not config.alphasift_enabled:
             raise RuntimeError("ALPHASIFT_ENABLED=false，选股功能未启用")
 
-        # Get adapter and screen function
         adapter = _get_dsa_adapter()
         screen_fn = _get_adapter_callable(adapter, "screen", "screen() 不可调用。")
 
-        # Execute screening
         try:
             from src.shared.alphasift_core import _call_alphasift_screen
             raw = _call_alphasift_screen(screen_fn, strategy, market, max_results)
         except Exception as exc:
-            duration = time.time() - start_time
+            duration = time.time() - self._last_start_time
             self._save_failed_record(
-                screening_date, strategy, market, str(exc), duration
+                screening_date, strategy, market, str(exc), duration,
+                logs="".join(log_capture)[-5000:],
             )
             raise
 
@@ -190,14 +216,12 @@ class ScreeningService:
         if not isinstance(raw_data, dict):
             raw_data = {"candidates": raw_data}
 
-        # Normalize candidates (reuse logic from shared layer)
         from src.shared.alphasift_core import _normalize_candidates
         candidates = _normalize_candidates(raw_data)
         selected = candidates[:max_results]
 
-        duration = time.time() - start_time
+        duration = time.time() - self._last_start_time
 
-        # Build record
         record = ScreeningRecord(
             screening_date=screening_date,
             strategy=strategy,
@@ -215,13 +239,11 @@ class ScreeningService:
             llm_coverage=json.dumps(raw_data.get("llm_coverage")) if raw_data.get("llm_coverage") else None,
             warnings_json=json.dumps(raw_data.get("warnings") or [], ensure_ascii=False),
             source_errors_json=json.dumps(raw_data.get("source_errors") or [], ensure_ascii=False),
+            execution_logs="".join(log_capture)[-10000:] if log_capture else None,
         )
 
         record_id = self.repo.save_screening_record(record)
-
-        # Save candidates
         self.repo.save_candidates_batch(self._build_candidate_batch_payload(record_id, selected))
-
         factor_pipeline_result = self._run_factor_pipeline_if_enabled(record_id, market=market, screening_date=screening_date)
 
         candidate_codes = [c.get("code", "") for c in selected if c.get("code")]
@@ -240,6 +262,7 @@ class ScreeningService:
             "duration_seconds": round(duration, 2),
             "candidate_codes": candidate_codes,
             "llm_market_view": record.llm_market_view,
+            "execution_logs": record.execution_logs or "",
             "factor_pipeline": factor_pipeline_result,
         }
 
@@ -250,6 +273,7 @@ class ScreeningService:
         market: str,
         error: str,
         duration: float,
+        logs: str = "",
     ) -> None:
         try:
             record = ScreeningRecord(
@@ -260,6 +284,7 @@ class ScreeningService:
                 status="failed",
                 duration_seconds=round(duration, 2),
                 error_message=error[:2000],
+                execution_logs=logs[-10000:] if logs else None,
             )
             self.repo.save_screening_record(record)
         except Exception:
@@ -508,6 +533,7 @@ class ScreeningService:
             "llm_coverage": _parse_json(record.llm_coverage),
             "warnings": _parse_json(record.warnings_json) or [],
             "source_errors": _parse_json(record.source_errors_json) or [],
+            "execution_logs": record.execution_logs or "",
             "created_at": record.created_at.isoformat() if record.created_at else None,
             "factor_pipeline": factor_pipeline,
             "candidates": [

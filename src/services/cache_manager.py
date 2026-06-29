@@ -181,7 +181,8 @@ class DiskCache:
             )
             conn.commit()
             return cursor.rowcount
-        except Exception:
+        except Exception as e:
+            logger.warning("缓存过期清理失败: %s", e)
             return 0
 
     @property
@@ -190,7 +191,8 @@ class DiskCache:
             conn = self._get_conn()
             row = conn.execute("SELECT COUNT(*) FROM cache_entries").fetchone()
             return row[0] if row else 0
-        except Exception:
+        except (sqlite3.OperationalError, sqlite3.DatabaseError) as e:
+            logger.warning("缓存大小查询失败: %s", e)
             return 0
 
 

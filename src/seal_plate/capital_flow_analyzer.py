@@ -190,8 +190,8 @@ class CapitalFlowAnalyzer:
                         risks.append(
                             f"⚠️ {stock.name}({stock.code})尾盘突袭封板({t.strftime('%H:%M')})，谨防一日游"
                         )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("尾盘时间解析失败: %s", e)
 
         # 板块涨停数过少，缺乏持续性
         for sector, count in hot_sectors:

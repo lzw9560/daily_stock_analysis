@@ -979,6 +979,7 @@ class DataFetcherManager:
         from .tushare_fetcher import TushareFetcher
         from .pytdx_fetcher import PytdxFetcher
         from .baostock_fetcher import BaostockFetcher
+        from .sina_fetcher import SinaFetcher
         from .tencent_fetcher import TencentFetcher
         from .yfinance_fetcher import YfinanceFetcher
         from .longbridge_fetcher import LongbridgeFetcher
@@ -988,6 +989,7 @@ class DataFetcherManager:
         akshare = AkshareFetcher()
         pytdx = PytdxFetcher()      # 通达信数据源（可配 PYTDX_HOST/PYTDX_PORT）
         baostock = BaostockFetcher()
+        sina = SinaFetcher()        # 新浪财经（免费实时行情，批量高效）
         tencent = TencentFetcher()  # 腾讯财经（免费实时行情补充）
         yfinance = YfinanceFetcher()
         optional_fetchers: List[BaseFetcher] = []
@@ -1025,6 +1027,7 @@ class DataFetcherManager:
                 akshare,
                 pytdx,
                 baostock,
+                sina,
                 tencent,
                 yfinance,
                 *optional_fetchers,
@@ -3143,3 +3146,63 @@ class DataFetcherManager:
         if last_error:
             logger.warning(f"[涨停池] 所有数据源均失败，最终错误: {last_error}")
         return []
+
+    # ── 北向资金 ─────────────────────────────────────────────────────────
+
+    def get_north_bound_context(self, top_n: int = 10) -> Dict[str, Any]:
+        """
+        北向资金上下文（fail-open）。
+
+        返回当日北向净流入 + 个股北向流入/流出排行。
+        北向接口不可用时降级到融资融券余额。
+        """
+        try:
+            payload = self._fundamental_adapter.get_north_bound_flow(top_n=top_n)
+        except Exception as e:
+            logger.warning(f"北向资金获取失败: {e}")
+            return {"status": "failed", "today_net_inflow": None, "errors": [str(e)]}
+        return payload
+
+    # ── 融资融券 ─────────────────────────────────────────────────────────
+
+    def get_margin_context(self) -> Dict[str, Any]:
+        """融资融券余额上下文（fail-open）。"""
+        try:
+            payload = self._fundamental_adapter.get_margin_balance()
+        except Exception as e:
+            logger.warning(f"融资融券获取失败: {e}")
+            return {"status": "failed", "margin_balance": None, "errors": [str(e)]}
+        return payload
+
+    # ── 大宗交易 ─────────────────────────────────────────────────────────
+
+    def get_block_trade_context(self, top_n: int = 10) -> Dict[str, Any]:
+        """大宗交易上下文（fail-open）。"""
+        try:
+            payload = self._fundamental_adapter.get_block_trade_stats(top_n=top_n)
+        except Exception as e:
+            logger.warning(f"大宗交易获取失败: {e}")
+            return {"status": "failed", "today_count": 0, "errors": [str(e)]}
+        return payload
+
+    # ── 机构调研 ─────────────────────────────────────────────────────────
+
+    def get_institution_research_context(self, top_n: int = 10) -> Dict[str, Any]:
+        """机构调研动向上下文（fail-open）。"""
+        try:
+            payload = self._fundamental_adapter.get_institution_research(top_n=top_n)
+        except Exception as e:
+            logger.warning(f"机构调研获取失败: {e}")
+            return {"status": "failed", "top_research_stocks": [], "errors": [str(e)]}
+        return payload
+
+    # ── 龙虎榜明细（扩展版） ─────────────────────────────────────────────
+
+    def get_dragon_tiger_detail_context(self, top_n: int = 10) -> Dict[str, Any]:
+        """龙虎榜明细上下文（fail-open，含机构席位数据）。"""
+        try:
+            payload = self._fundamental_adapter.get_dragon_tiger_detail(top_n=top_n)
+        except Exception as e:
+            logger.warning(f"龙虎榜明细获取失败: {e}")
+            return {"status": "failed", "entries": [], "errors": [str(e)]}
+        return payload

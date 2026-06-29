@@ -661,6 +661,27 @@ def run_full_analysis(
         except Exception as e:
             logger.error(f"飞书文档生成失败: {e}")
 
+        # === 综合推荐列表 → 飞书推送 ===
+        if results and not args.no_notify:
+            try:
+                from src.strategy.daily_recommendation_notifier import (
+                    DailyRecommendationNotifier,
+                )
+
+                rec_notifier = DailyRecommendationNotifier(config=config)
+                if rec_notifier.enabled:
+                    logger.info("正在生成综合推荐列表...")
+                    success = rec_notifier.send_recommendation_list(
+                        results,
+                        market_report=market_report,
+                    )
+                    if success:
+                        logger.info("综合推荐列表已发送到飞书")
+                    else:
+                        logger.warning("综合推荐列表发送失败或未启用")
+            except Exception as e:
+                logger.warning("综合推荐通知发送失败（已忽略）: %s", e)
+
         # === Auto backtest ===
         try:
             if getattr(config, 'backtest_enabled', False):

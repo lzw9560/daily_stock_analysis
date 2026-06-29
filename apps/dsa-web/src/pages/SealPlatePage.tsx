@@ -35,6 +35,7 @@ export default function SealPlatePage() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [selectedStock, setSelectedStock] = useState<SealPlateStockResponse | null>(null);
   const [showEightStandard, setShowEightStandard] = useState(false);
+  const [quickFilter, setQuickFilter] = useState<'all' | 'strong' | 'leader' | 'score90' | 'score80'>('all');
 
   // 日期选择
   const [effectiveDate, setEffectiveDate] = useState<string>('');
@@ -378,13 +379,13 @@ export default function SealPlatePage() {
         </div>
       </div>
 
-      {/* 功能Tab导航 */}
-      <div className="flex gap-2 border-b border-border overflow-x-auto">
+      {/* 功能Tab导航 - 横向滚动 */}
+      <div className="flex gap-1 border-b border-border overflow-x-auto pb-1 scrollbar-thin">
         <button
-          className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition-colors rounded-t ${
             activeTab === 'overview'
-              ? 'border-red-500 text-red-500'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'border-red-500 text-red-500 bg-red-500/5'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-hover/50'
           }`}
           onClick={() => setActiveTab('overview')}
         >
@@ -392,10 +393,10 @@ export default function SealPlatePage() {
           概览
         </button>
         <button
-          className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition-colors rounded-t ${
             activeTab === 'stockPool'
-              ? 'border-red-500 text-red-500'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'border-red-500 text-red-500 bg-red-500/5'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-hover/50'
           }`}
           onClick={() => setActiveTab('stockPool')}
         >
@@ -403,10 +404,10 @@ export default function SealPlatePage() {
           股票池
         </button>
         <button
-          className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition-colors rounded-t ${
             activeTab === 'sentiment'
-              ? 'border-red-500 text-red-500'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'border-red-500 text-red-500 bg-red-500/5'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-hover/50'
           }`}
           onClick={() => setActiveTab('sentiment')}
         >
@@ -414,10 +415,10 @@ export default function SealPlatePage() {
           情绪周期
         </button>
         <button
-          className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition-colors rounded-t ${
             activeTab === 'dragonTiger'
-              ? 'border-red-500 text-red-500'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'border-red-500 text-red-500 bg-red-500/5'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-hover/50'
           }`}
           onClick={() => setActiveTab('dragonTiger')}
         >
@@ -425,10 +426,10 @@ export default function SealPlatePage() {
           龙虎榜
         </button>
         <button
-          className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition-colors rounded-t ${
             activeTab === 'recommend'
-              ? 'border-red-500 text-red-500'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'border-red-500 text-red-500 bg-red-500/5'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-hover/50'
           }`}
           onClick={() => setActiveTab('recommend')}
         >
@@ -436,10 +437,10 @@ export default function SealPlatePage() {
           推荐建仓
         </button>
         <button
-          className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition-colors rounded-t ${
             activeTab === 'strategies'
-              ? 'border-red-500 text-red-500'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'border-red-500 text-red-500 bg-red-500/5'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-hover/50'
           }`}
           onClick={() => setActiveTab('strategies')}
         >
@@ -447,10 +448,10 @@ export default function SealPlatePage() {
           高胜率战法
         </button>
         <button
-          className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition-colors rounded-t ${
             activeTab === 'dataSources'
-              ? 'border-red-500 text-red-500'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'border-red-500 text-red-500 bg-red-500/5'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-hover/50'
           }`}
           onClick={() => setActiveTab('dataSources')}
         >
@@ -458,10 +459,10 @@ export default function SealPlatePage() {
           数据源
         </button>
         <button
-          className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition-colors rounded-t ${
             activeTab === 'recommendReview'
-              ? 'border-red-500 text-red-500'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'border-red-500 text-red-500 bg-red-500/5'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-hover/50'
           }`}
           onClick={() => setActiveTab('recommendReview')}
         >
@@ -469,10 +470,10 @@ export default function SealPlatePage() {
           推荐复盘
         </button>
         <button
-          className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition-colors rounded-t ${
             activeTab === 'combinedAnalysis'
-              ? 'border-red-500 text-red-500'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'border-red-500 text-red-500 bg-red-500/5'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-hover/50'
           }`}
           onClick={() => setActiveTab('combinedAnalysis')}
         >
@@ -480,10 +481,10 @@ export default function SealPlatePage() {
           战法共振
         </button>
         <button
-          className={`flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition-colors rounded-t ${
             activeTab === 'recommendManagement'
-              ? 'border-blue-500 text-blue-500'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+              ? 'border-blue-500 text-blue-500 bg-blue-500/5'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-hover/50'
           }`}
           onClick={() => setActiveTab('recommendManagement')}
         >
@@ -491,6 +492,33 @@ export default function SealPlatePage() {
           推荐管理
         </button>
       </div>
+
+      {/* 概览快捷筛选 */}
+      {activeTab === 'overview' && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground mr-1">快速筛选：</span>
+          {([
+            { key: 'all', label: '全部' },
+            { key: 'strong', label: '强势封板' },
+            { key: 'leader', label: '龙头股' },
+            { key: 'score90', label: '≥90分' },
+            { key: 'score80', label: '≥80分' },
+          ] as const).map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setQuickFilter(f.key)}
+              className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                quickFilter === f.key
+                  ? 'bg-primary/15 text-primary border border-primary/30'
+                  : 'bg-muted/40 text-muted-foreground border border-transparent hover:bg-muted/60'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 八项标准检查弹窗 */}
       {showEightStandard && selectedStock && (
@@ -592,16 +620,28 @@ export default function SealPlatePage() {
             </Card>
           )}
 
-          {/* Strong Stocks - 按评分降序 */}
+          {/* Strong Stocks - 按评分降序（支持快捷筛选） */}
           {sortedStrongStocks.length > 0 && (
             <div>
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Flame className="w-5 h-5 text-red-500" />
-                强势涨停 ({sortedStrongStocks.length}只)
-                <span className="text-xs text-muted-foreground font-normal ml-1">按评分排序</span>
+                强势涨停 ({sortedStrongStocks.filter(s => {
+                  if (quickFilter === 'score90') return s.score >= 90;
+                  if (quickFilter === 'score80') return s.score >= 80;
+                  return true;
+                }).length}只)
+                <span className="text-xs text-muted-foreground font-normal ml-1">
+                  按评分排序{quickFilter !== 'all' && ` · 筛选: ${quickFilter === 'score90' ? '≥90分' : quickFilter === 'score80' ? '≥80分' : ''}`}
+                </span>
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {sortedStrongStocks.map((stock: SealPlateStockResponse, index: number) => (
+                {sortedStrongStocks
+                  .filter((s) => {
+                    if (quickFilter === 'score90') return s.score >= 90;
+                    if (quickFilter === 'score80') return s.score >= 80;
+                    return true;
+                  })
+                  .map((stock: SealPlateStockResponse, index: number) => (
                   <div
                     key={stock.code}
                     onClick={() => {
